@@ -164,7 +164,7 @@ Add these aliases to your shell configuration file (`~/.bashrc`, `~/.zshrc`, etc
 
 - Commitizen:
   ```bash
-  alias cz='docker run --rm -v "$(pwd):/app" commitizen/commitizen:4.10.0'
+  alias cz='docker run --rm -it -v "$PWD":/app --entrypoint /bin/sh commitizen/commitizen:4.10.0 -c '\''git config --global --add safe.directory /app && cz "$@"'\'' --'
   ```
 - ShellCheck
   ```bash
