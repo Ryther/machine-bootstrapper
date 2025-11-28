@@ -2,6 +2,8 @@
 
 Public bootstrap for a fresh machine — prepares base environment, SSH key, clones a private repo, and runs its provisioning script.
 
+> **Contributing?** See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow, commit conventions, and tooling setup.
+
 ## 🚀 What is this
 
 `machine-boostrapper` is a minimal, public bootstrap repository intended to:
@@ -83,27 +85,40 @@ If an orphaned public key remains without its private counterpart, the bootstrap
 
 ## Flow
 ```mermaid
-flowchart LR
+flowchart TB
 A[Fresh install] --> B[Run bootstrap.sh]
-B --> C{SSH key exists?}
-C -- no --> D[Generate SSH key]
-C -- yes --> E[Show public key + QR]
+B --> C{Dependencies<br/>available?}
+C -->|missing| D[Install/prompt<br/>ssh-keygen, qrencode]
+C -->|present| E{Bootstrapper<br/>keypair exists?}
 D --> E
-E --> F[Add key to GitHub]
-F --> G[Clone setup-private]
-G --> H[Run private bootstrap script]
-H --> I[System configured]
+
+E -->|both missing| F[Generate new<br/>~/.ssh/bootstrapper]
+E -->|only private| G[Regenerate .pub<br/>from private key]
+E -->|only public<br/>orphaned| H{Unattended<br/>mode?}
+H -->|yes| I[Generate timestamped<br/>bootstrapper_YYYYMMDD...]
+H -->|no| J[Prompt: delete orphan<br/>or abort]
+E -->|both present| K{Unattended +<br/>key pre-exists?}
+
+F --> L[Show public key + QR]
+G --> L
+I --> L
+J --> L
+K -->|yes| M[Skip display/prompts]
+K -->|no| L
+
+L --> N[Wait for GitHub<br/>key registration]
+M --> O[Clone setup-private]
+N --> O
+O --> P[Execute provisioning<br/>script from private repo]
+P --> Q[System configured]
 
 classDef process fill:#E0F2FE,stroke:#0F6ABF,color:#0A2C50,stroke-width:2px;
-
 classDef decision fill:#FFF5E1,stroke:#E69100,color:#7A4100,stroke-width:2px;
-
 classDef start fill:#DCFCE7,stroke:#15803D,color:#065F46,stroke-width:2px;
-
 classDef finish fill:#F3E8FF,stroke:#7C3AED,color:#4C1D95,stroke-width:2px;
 
-class B,D,E,F,G,H process;
-class C decision;
+class B,D,F,G,I,J,L,M,N,O,P process;
+class C,E,H,K decision;
 class A start;
-class I finish;
+class Q finish;
 ```
