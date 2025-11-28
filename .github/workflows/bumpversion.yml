@@ -27,7 +27,7 @@ jobs:
           VERSION="${{ env.REVISION }}"
 
           # Create versioned copy of bootstrap script
-          cp bootstrap.sh "bootstrap-${VERSION}.sh"
+          mv bootstrap.sh "bootstrap-${VERSION}.sh"
           echo "Created versioned script: bootstrap-${VERSION}.sh"
 
           # Create SHA256 checksum for versioned script
@@ -35,11 +35,18 @@ jobs:
           echo "Generated SHA256 checksum:"
           cat "bootstrap-${VERSION}.sh.sha256"
 
-          # Create source tarball with version in filename
-          tar --exclude='.git' --exclude='.github' --exclude='.gitignore' \
-              -czf "machine-bootstrapper-${VERSION}.tar.gz" \
+          # Create source tarball in temp directory to avoid "file changed" error
+          TMPDIR=$(mktemp -d)
+          tar --exclude='.git' \
+              --exclude='.github' \
+              --exclude='.gitignore' \
+              -czf "${TMPDIR}/machine-bootstrapper-${VERSION}.tar.gz" \
               --transform "s,^,machine-bootstrapper-${VERSION}/," \
               .
+
+          # Move tarball to current directory
+          mv "${TMPDIR}/machine-bootstrapper-${VERSION}.tar.gz" .
+          rm -rf "${TMPDIR}"
 
           echo "Created source tarball: machine-bootstrapper-${VERSION}.tar.gz"
           ls -lh "machine-bootstrapper-${VERSION}.tar.gz" "bootstrap-${VERSION}.sh"
