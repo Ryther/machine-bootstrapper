@@ -11,6 +11,7 @@ commitizen:
   changelog_file: CHANGELOG.md
   changelog_incremental: true
   changelog_start_rev: null
+  bump_message: "bump: version $current_version → $new_version [skip ci]"
   customize:
     message_template: "{{change_type}}{% if scope %}({{scope}}){% endif %}: [gh-{{issue}}] {{message}}"
     example: "feat(api): [gh-42] add new endpoint for user authentication"

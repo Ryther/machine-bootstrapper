@@ -1,13 +1,14 @@
 name: Bump version
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["ShellCheck"]
+    types: [completed]
 
 jobs:
   bump-version:
-    if: "!startsWith(github.event.head_commit.message, 'bump:')"
+    if: >
+      ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
     runs-on: ubuntu-latest
     name: "Bump version and create changelog with commitizen"
     steps:
@@ -20,7 +21,8 @@ jobs:
         uses: commitizen-tools/commitizen-action@master
         with:
           github_token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          changelog_increment_filename: body.md
+          commitizen_version: 4.10.0
+          changelog_increment_filename: CHANGELOG-latest.md
 
       - name: Prepare release artifacts
         run: |
@@ -51,14 +53,23 @@ jobs:
           echo "Created source tarball: machine-bootstrapper-${VERSION}.tar.gz"
           ls -lh "machine-bootstrapper-${VERSION}.tar.gz" "bootstrap-${VERSION}.sh"
 
-      - name: Release
+      - name: Create draft release with artifacts
         uses: softprops/action-gh-release@v2
         with:
-          body_path: "CHANGELOG.md"
-          tag_name: ${{ env.REVISION }}
+          body_path: "CHANGELOG-latest.md"
+          tag_name: v${{ env.REVISION }}
+          draft: true
           files: |
             bootstrap-${{ env.REVISION }}.sh
             bootstrap-${{ env.REVISION }}.sh.sha256
             machine-bootstrapper-${{ env.REVISION }}.tar.gz
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.REVISION }}
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
