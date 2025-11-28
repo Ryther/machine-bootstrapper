@@ -1,4 +1,5 @@
 # machine-boostrapper
+![Static Badge](https://img.shields.io/badge/version-0.0.1-blue?style=for-the-badge)
 
 Public bootstrap for a fresh machine — prepares base environment, SSH key, clones a private repo, and runs its provisioning script.
 

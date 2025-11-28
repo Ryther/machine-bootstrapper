@@ -1,6 +1,9 @@
 commitizen:
   name: cz_conventional_commits
-  version: 0.1.0
+  version: 0.0.1
+  version_files:
+    - "README.md:![Static Badge](https://img.shields.io/badge/version-"
+    - "bootstrap.sh:# version: "
   tag_format: v$version
   version_scheme: semver
   version_provider: scm
