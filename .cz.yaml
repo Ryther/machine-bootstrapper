@@ -1,9 +1,8 @@
 commitizen:
-  name: cz_conventional_commits
-  version: 0.0.1
+  name: cz_customize
   version_files:
-    - "README.md:![Static Badge](https://img.shields.io/badge/version-"
-    - "bootstrap.sh:# version: "
+    - README.md:badge/version-
+    - "bootstrap.sh:# Version: "
   tag_format: v$version
   version_scheme: semver
   version_provider: scm
@@ -12,38 +11,18 @@ commitizen:
   changelog_file: CHANGELOG.md
   changelog_incremental: true
   changelog_start_rev: null
-  style:
-    - - qmark
-      - fg:#ff9d00 bold
-    - - question
-      - bold
-    - - answer
-      - fg:#ff9d00 bold
-    - - pointer
-      - fg:#ff9d00 bold
-    - - highlighted
-      - fg:#ff9d00 bold
-    - - selected
-      - fg:#cc5454
-    - - separator
-      - fg:#cc5454
-    - - instruction
-      - ""
-    - - text
-      - ""
-    - - disabled
-      - fg:#858585 italic
   customize:
     message_template: "{{change_type}}{% if scope %}({{scope}}){% endif %}: [gh-{{issue}}] {{message}}"
     example: "feat(api): [gh-42] add new endpoint for user authentication"
     schema: "<type>(<scope>): [gh-<issue>] <subject>"
     schema_pattern: "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|devcontainer|conf)(\\(\\w+\\))?: \\[gh-\\d+\\] .+$"
-    bump_pattern: "^(feat|fix|perf|refactor)"
+    bump_pattern: "^(feat|fix|perf|refactor|conf)"
     bump_map:
       feat: MINOR
       fix: PATCH
       perf: PATCH
       refactor: PATCH
+      conf: PATCH
     change_type_order:
       - feat
       - fix
