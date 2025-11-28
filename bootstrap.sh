@@ -1,11 +1,73 @@
 #!/usr/bin/env sh
+# ==============================================================================
+# machine-bootstrapper - Bootstrap Script for Fresh Machine Setup
+# ==============================================================================
+# Description:
+#   Minimal bootstrap script to initialize a fresh Linux/macOS machine by:
+#   - Generating a dedicated SSH key (default: ~/.ssh/bootstrapper)
+#   - Displaying public key + QR code for GitHub registration
+#   - Cloning a private provisioning repository
+#   - Executing a provisioning script from the private repo
+#
+# Requirements:
+#   - git (must be pre-installed)
+#   - ssh-keygen (can be auto-installed)
+#   - qrencode (optional, for QR code output)
+#
+# Usage:
+#   sh bootstrap.sh [OPTIONS] <git-ssh-url> [branch] [script-path] [-- script-args]
+#
+# Options:
+#   --auto-install    Automatically install missing dependencies
+#   --no-install      Never install dependencies (fail if missing)
+#   --dry-run         Simulate actions without making changes
+#   -v, --verbose     Enable tracing and timestamped logs
+#   --unattended      Skip all interactive prompts
+#   --ssh-pub-key     Override SSH public key path (default: ~/.ssh/bootstrapper.pub)
+#   -h, --help        Show usage information
+#
+# Examples:
+#   sh bootstrap.sh git@github.com:user/setup-private.git
+#   sh bootstrap.sh --auto-install git@github.com:user/setup.git main bootstrap.sh
+#   sh bootstrap.sh --unattended --auto-install git@github.com:user/setup.git
+#
+# Exit Codes:
+#   0 - Success
+#   1 - Error (missing dependencies, invalid arguments, script failure)
+#
+# Notes:
+#   - POSIX-compliant (no bash-specific features)
+#   - Idempotent (safe to re-run)
+#   - Supports unattended/CI execution with --unattended flag
+#
+# Author: Ryher<ryther-github.fencing812@passmail.net>
+# Repository: https://github.com/Ryther/machine-bootstrapper
+# Version: 0.0.1
+# License: See LICENSE file in repository
+# ==============================================================================
+
 set -eu
 
+# ==============================================================================
+# FUNCTION: generate_bootstrapper_key_path
+# Generate a timestamped SSH key path for orphaned key scenarios
+#
+# Description:
+#   Creates a unique SSH public key path using current timestamp to avoid
+#   conflicts when an orphaned public key exists without its private counterpart.
+#   Used only in --unattended mode.
+#
+# Returns:
+#   String: Path to timestamped public key (~/.ssh/bootstrapper_YYYYMMDDTHHMMSS.pub)
+# ==============================================================================
 generate_bootstrapper_key_path() {
   STAMP="$(date "+%Y%m%dT%H%M%S")"
   printf "%s/.ssh/bootstrapper_%s.pub" "$HOME" "$STAMP"
 }
 
+# ==============================================================================
+# CONFIGURATION: Global defaults and state variables
+# ==============================================================================
 DEFAULT_BRANCH="main"
 DEFAULT_TARGET_DIR="$HOME/setup-private"
 DEFAULT_SCRIPT_PATH="bootstrap.sh"
@@ -22,6 +84,14 @@ SSH_PUB_KEY_PATH="$DEFAULT_SSH_PUB_KEY_PATH"
 UNATTENDED=0
 SSH_KEY_PREEXISTING=0
 
+# ==============================================================================
+# FUNCTION: usage
+# Display help message and exit
+#
+# Description:
+#   Prints script usage information including all available flags,
+#   arguments, and usage examples.
+# ==============================================================================
 usage() {
   printf "%s\n" "Usage: $0 [--auto-install|--no-install] [--dry-run] [--verbose] [--unattended] [--ssh-pub-key PATH] [--] <git-ssh-url> [branch] [script-path] [script-args ...]"
   printf "%s\n" "  --auto-install    Automatically install missing dependencies"
@@ -38,32 +108,88 @@ usage() {
   exit 1
 }
 
+# ==============================================================================
+# FUNCTION: timestamp
+# Generate ISO 8601 timestamp for logging
+#
+# Returns:
+#   String: Current timestamp in "YYYY-MM-DD HH:MM:SS" format
+# ==============================================================================
 timestamp() {
   date "+%Y-%m-%d %H:%M:%S"
 }
 
+# ==============================================================================
+# FUNCTION: log_line
+# Internal logging function with timestamp and level
+#
+# Arguments:
+#   $1 - Log level (INFO, WARN, ERROR, DRY-RUN)
+#   $@ - Log message components
+# ==============================================================================
 log_line() {
   LEVEL="$1"
   shift
   printf "%s [%s] %s\n" "$(timestamp)" "$LEVEL" "$*"
 }
 
+# ==============================================================================
+# FUNCTION: log_info
+# Log informational message
+#
+# Arguments:
+#   $@ - Message to log
+# ==============================================================================
 log_info() {
   log_line "INFO" "$*"
 }
 
+# ==============================================================================
+# FUNCTION: log_warn
+# Log warning message
+#
+# Arguments:
+#   $@ - Warning message to log
+# ==============================================================================
 log_warn() {
   log_line "WARN" "$*"
 }
 
+# ==============================================================================
+# FUNCTION: log_error
+# Log error message to stderr
+#
+# Arguments:
+#   $@ - Error message to log
+# ==============================================================================
 log_error() {
   log_line "ERROR" "$*" >&2
 }
 
+# ==============================================================================
+# FUNCTION: log_dryrun
+# Log dry-run action (simulation mode)
+#
+# Arguments:
+#   $@ - Action that would be performed
+# ==============================================================================
 log_dryrun() {
   log_line "DRY-RUN" "$*"
 }
 
+# ==============================================================================
+# FUNCTION: should_skip_key_interaction
+# Determine if SSH key display/prompts should be skipped
+#
+# Description:
+#   Returns true (0) when running in unattended mode AND the SSH key
+#   already existed before this script run. This avoids redundant
+#   key display in CI/automation scenarios.
+#
+# Returns:
+#   0 - Skip interaction (unattended + key pre-exists)
+#   1 - Show interaction (interactive or new key)
+# ==============================================================================
 should_skip_key_interaction() {
   if [ "$UNATTENDED" -eq 1 ] && [ "$SSH_KEY_PREEXISTING" -eq 1 ]; then
     return 0
@@ -71,6 +197,17 @@ should_skip_key_interaction() {
   return 1
 }
 
+# ==============================================================================
+# FUNCTION: prompt_yes_no
+# Interactive yes/no prompt for user confirmation
+#
+# Arguments:
+#   $1 - Question to display
+#
+# Returns:
+#   0 - User answered yes (y/Y)
+#   1 - User answered no (n/N) or pressed Enter
+# ==============================================================================
 prompt_yes_no() {
   QUESTION="$1"
   while :; do
@@ -86,6 +223,23 @@ prompt_yes_no() {
   done
 }
 
+# ==============================================================================
+# FUNCTION: ensure_ssh_key
+# Generate or validate SSH keypair for bootstrapper
+#
+# Description:
+#   Handles four scenarios:
+#   1. Both keys exist: Mark as pre-existing and continue
+#   2. Only private key exists: Regenerate public key from private
+#   3. Only public key exists (orphaned): Prompt to delete or use timestamped key
+#   4. Neither exists: Generate new ed25519 keypair
+#
+#   Sets SSH_KEY_PREEXISTING=1 when reusing existing keys.
+#
+# Returns:
+#   0 - Success (key ready)
+#   1 - Failure (orphaned key without resolution)
+# ==============================================================================
 ensure_ssh_key() {
   PRIVATE_KEY_PATH="$(private_key_from_pub "$SSH_PUB_KEY_PATH")"
   KEY_DIR="$(dirname "$PRIVATE_KEY_PATH")"
@@ -149,6 +303,14 @@ ensure_ssh_key() {
   ssh-keygen -t ed25519 -f "$PRIVATE_KEY_PATH" -N "" -C "bootstrap-$HOST_LABEL"
 }
 
+# ==============================================================================
+# FUNCTION: show_public_key
+# Display SSH public key and QR code for GitHub registration
+#
+# Description:
+#   Prints the public key content and generates a QR code (if qrencode available).
+#   Skipped when running in unattended mode with pre-existing key.
+# ==============================================================================
 show_public_key() {
   if should_skip_key_interaction; then
     log_info "Skipping public key display in unattended mode (key already present)."
@@ -177,6 +339,18 @@ show_public_key() {
   fi
 }
 
+# ==============================================================================
+# FUNCTION: detect_pkg_manager
+# Detect available package manager on the system
+#
+# Description:
+#   Checks for common package managers in order of precedence:
+#   apt, dnf, yum, pacman, zypper, brew
+#
+# Returns:
+#   String: Package manager name (apt/dnf/yum/pacman/zypper/brew)
+#   Exit code 1 if no supported package manager found
+# ==============================================================================
 detect_pkg_manager() {
   if command -v apt-get >/dev/null 2>&1; then
     printf "%s" "apt"
@@ -205,6 +379,18 @@ detect_pkg_manager() {
   return 1
 }
 
+# ==============================================================================
+# FUNCTION: package_name_for_tool
+# Map tool command name to package name for specific package manager
+#
+# Arguments:
+#   $1 - Tool name (ssh-keygen, qrencode)
+#   $2 - Package manager (apt, dnf, yum, pacman, zypper, brew)
+#
+# Returns:
+#   String: Package name for the given tool and manager
+#   Exit code 1 if tool/manager combination not supported
+# ==============================================================================
 package_name_for_tool() {
   TOOL="$1"
   MANAGER="$2"
@@ -251,6 +437,14 @@ package_name_for_tool() {
   return 0
 }
 
+# ==============================================================================
+# FUNCTION: ensure_apt_updated
+# Run apt-get update once per script execution
+#
+# Description:
+#   Ensures package index is updated before installing packages with apt.
+#   Uses APT_UPDATED flag to avoid redundant updates.
+# ==============================================================================
 ensure_apt_updated() {
   if [ "$APT_UPDATED" -eq 0 ]; then
     if [ "$DRY_RUN" -eq 1 ]; then
@@ -262,6 +456,18 @@ ensure_apt_updated() {
   fi
 }
 
+# ==============================================================================
+# FUNCTION: install_tool_with_manager
+# Install a single tool using the specified package manager
+#
+# Arguments:
+#   $1 - Tool name to install
+#   $2 - Package manager to use
+#
+# Returns:
+#   0 - Installation succeeded
+#   1 - Installation failed or unsupported tool/manager
+# ==============================================================================
 install_tool_with_manager() {
   TOOL_TO_INSTALL="$1"
   MANAGER="$2"
@@ -298,6 +504,17 @@ install_tool_with_manager() {
   return 0
 }
 
+# ==============================================================================
+# FUNCTION: install_missing_tools
+# Install multiple tools using detected package manager
+#
+# Arguments:
+#   $1 - Space-separated list of tool names
+#
+# Returns:
+#   0 - All tools installed successfully
+#   1 - Installation failed for at least one tool
+# ==============================================================================
 install_missing_tools() {
   TOOLS="$1"
   if [ -z "$TOOLS" ]; then
@@ -316,6 +533,14 @@ install_missing_tools() {
   return 0
 }
 
+# ==============================================================================
+# FUNCTION: collect_missing_tools
+# Identify missing required and optional tools
+#
+# Description:
+#   Checks for presence of tools defined in REQUIRED_TOOLS and OPTIONAL_TOOLS.
+#   Populates REQUIRED_MISSING and OPTIONAL_MISSING global variables.
+# ==============================================================================
 collect_missing_tools() {
   REQUIRED_MISSING=""
   OPTIONAL_MISSING=""
@@ -341,6 +566,13 @@ collect_missing_tools() {
   done
 }
 
+# ==============================================================================
+# FUNCTION: list_tools
+# Print formatted list of tools
+#
+# Arguments:
+#   $1 - Space-separated list of tool names
+# ==============================================================================
 list_tools() {
   TOOLS_TO_PRINT="$1"
   if [ -n "$TOOLS_TO_PRINT" ]; then
@@ -350,6 +582,13 @@ list_tools() {
   fi
 }
 
+# ==============================================================================
+# FUNCTION: fail_missing_tools
+# Display missing tools error message and exit
+#
+# Description:
+#   Lists missing required and optional tools, then exits with code 1.
+# ==============================================================================
 fail_missing_tools() {
   if [ -n "$REQUIRED_MISSING" ]; then
     log_error "Missing required tools:"
@@ -363,6 +602,16 @@ fail_missing_tools() {
   exit 1
 }
 
+# ==============================================================================
+# FUNCTION: ensure_dependencies
+# Check and optionally install missing dependencies
+#
+# Description:
+#   Main dependency resolution function. Behavior depends on INSTALL_MODE:
+#   - prompt: Ask user before installing
+#   - yes: Auto-install without prompting
+#   - no: Fail if any tools are missing
+# ==============================================================================
 ensure_dependencies() {
   collect_missing_tools
   if [ -z "$REQUIRED_MISSING" ] && [ -z "$OPTIONAL_MISSING" ]; then
@@ -412,6 +661,16 @@ ensure_dependencies() {
   fi
 }
 
+# ==============================================================================
+# FUNCTION: maybe_wait_for_confirmation
+# Prompt user to press Enter before continuing
+#
+# Arguments:
+#   $1 - Prompt message to display
+#
+# Description:
+#   Skipped in unattended mode with pre-existing key or dry-run mode.
+# ==============================================================================
 maybe_wait_for_confirmation() {
   MESSAGE="$1"
   if should_skip_key_interaction; then
@@ -426,6 +685,14 @@ maybe_wait_for_confirmation() {
   IFS= read -r _
 }
 
+# ==============================================================================
+# FUNCTION: ensure_git_available
+# Verify git is installed (required dependency)
+#
+# Description:
+#   Checks for git availability. Exits with error if not found.
+#   Git must be manually installed before running this script.
+# ==============================================================================
 ensure_git_available() {
   if ! command -v git >/dev/null 2>&1; then
     log_error "git not found. Install git manually before running this script."
@@ -433,6 +700,13 @@ ensure_git_available() {
   fi
 }
 
+# ==============================================================================
+# FUNCTION: configure_sudo
+# Detect and configure sudo for privilege escalation
+#
+# Description:
+#   Sets SUDO_BIN to "sudo" if available, otherwise empty string.
+# ==============================================================================
 configure_sudo() {
   if command -v sudo >/dev/null 2>&1; then
     SUDO_BIN="sudo"
@@ -441,6 +715,13 @@ configure_sudo() {
   fi
 }
 
+# ==============================================================================
+# FUNCTION: derive_host_label
+# Get hostname for SSH key comment
+#
+# Returns:
+#   String: System hostname or "unknown" if unavailable
+# ==============================================================================
 derive_host_label() {
   if command -v hostname >/dev/null 2>&1; then
     hostname 2>/dev/null || printf "%s" "unknown"
@@ -449,6 +730,16 @@ derive_host_label() {
   fi
 }
 
+# ==============================================================================
+# FUNCTION: private_key_from_pub
+# Derive private key path from public key path
+#
+# Arguments:
+#   $1 - Public key path (e.g., ~/.ssh/bootstrapper.pub)
+#
+# Returns:
+#   String: Private key path (e.g., ~/.ssh/bootstrapper)
+# ==============================================================================
 private_key_from_pub() {
   PUB_PATH="$1"
   case "$PUB_PATH" in
@@ -461,6 +752,14 @@ private_key_from_pub() {
   esac
 }
 
+# ==============================================================================
+# FUNCTION: clone_private_repo
+# Clone the private provisioning repository
+#
+# Description:
+#   Clones REPO_URL (branch BRANCH) into DEFAULT_TARGET_DIR using shallow clone.
+#   Skips if directory already exists.
+# ==============================================================================
 clone_private_repo() {
   TARGET_DIR="$DEFAULT_TARGET_DIR"
   if [ -d "$TARGET_DIR" ]; then
@@ -477,6 +776,17 @@ clone_private_repo() {
   git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$TARGET_DIR"
 }
 
+# ==============================================================================
+# FUNCTION: resolve_target_script_path
+# Convert script path to absolute path
+#
+# Description:
+#   If SCRIPT_PATH is relative, prepends DEFAULT_TARGET_DIR.
+#   If absolute, returns as-is.
+#
+# Returns:
+#   String: Absolute path to target script
+# ==============================================================================
 resolve_target_script_path() {
   TARGET_DIR="$DEFAULT_TARGET_DIR"
   if [ "${SCRIPT_PATH#/}" = "$SCRIPT_PATH" ]; then
@@ -486,6 +796,14 @@ resolve_target_script_path() {
   fi
 }
 
+# ==============================================================================
+# FUNCTION: ensure_target_script_exists
+# Verify target provisioning script exists
+#
+# Description:
+#   Checks for existence of the script to be executed from the private repo.
+#   Exits with error if not found (unless in dry-run mode).
+# ==============================================================================
 ensure_target_script_exists() {
   TARGET_SCRIPT="$(resolve_target_script_path)"
   if [ "$DRY_RUN" -eq 1 ]; then
@@ -498,6 +816,18 @@ ensure_target_script_exists() {
   fi
 }
 
+# ==============================================================================
+# FUNCTION: execute_target_script
+# Execute the provisioning script from the private repository
+#
+# Arguments:
+#   $@ - Arguments to forward to the provisioning script
+#
+# Description:
+#   Changes to target directory (if relative path), then executes the script.
+#   Uses sudo if available, otherwise runs directly.
+#   Attempts to execute script directly if executable, otherwise uses sh.
+# ==============================================================================
 execute_target_script() {
   if [ "$DRY_RUN" -eq 1 ]; then
     return 0
@@ -531,6 +861,23 @@ execute_target_script() {
   fi
 }
 
+# ==============================================================================
+# FUNCTION: main
+# Main entry point - parse arguments and orchestrate bootstrap process
+#
+# Arguments:
+#   $@ - Command-line arguments
+#
+# Description:
+#   1. Parse command-line flags and arguments
+#   2. Validate git availability
+#   3. Configure sudo
+#   4. Ensure dependencies (ssh-keygen, qrencode)
+#   5. Generate/validate SSH keypair
+#   6. Display public key and wait for GitHub registration
+#   7. Clone private provisioning repository
+#   8. Execute target provisioning script with forwarded arguments
+# ==============================================================================
 main() {
   while [ $# -gt 0 ]; do
     case "$1" in
