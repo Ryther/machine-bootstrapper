@@ -109,72 +109,42 @@ usage() {
 }
 
 # ==============================================================================
-# FUNCTION: timestamp
-# Generate ISO 8601 timestamp for logging
-#
-# Returns:
-#   String: Current timestamp in "YYYY-MM-DD HH:MM:SS" format
-# ==============================================================================
-timestamp() {
-  date "+%Y-%m-%d %H:%M:%S"
-}
-
-# ==============================================================================
-# FUNCTION: log_line
-# Internal logging function with timestamp and level
+# FUNCTION: log
+# Centralized logging function with timestamp and level
 #
 # Arguments:
 #   $1 - Log level (INFO, WARN, ERROR, DRY-RUN)
 #   $@ - Log message components
+#
+# Description:
+#   Logs messages with ISO 8601 timestamp and level prefix.
+#   ERROR messages are sent to stderr.
+#
+# Examples:
+#   log INFO "Starting bootstrap process"
+#   log WARN "Optional tool missing"
+#   log ERROR "Failed to generate SSH key"
+#   log DRY-RUN "Would install package xyz"
 # ==============================================================================
-log_line() {
+log() {
+  if [ $# -lt 2 ]; then
+    printf "log: missing level or message\n" >&2
+    return 1
+  fi
+
   LEVEL="$1"
   shift
-  printf "%s [%s] %s\n" "$(timestamp)" "$LEVEL" "$*"
-}
+  TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
+  MESSAGE="$*"
 
-# ==============================================================================
-# FUNCTION: log_info
-# Log informational message
-#
-# Arguments:
-#   $@ - Message to log
-# ==============================================================================
-log_info() {
-  log_line "INFO" "$*"
-}
-
-# ==============================================================================
-# FUNCTION: log_warn
-# Log warning message
-#
-# Arguments:
-#   $@ - Warning message to log
-# ==============================================================================
-log_warn() {
-  log_line "WARN" "$*"
-}
-
-# ==============================================================================
-# FUNCTION: log_error
-# Log error message to stderr
-#
-# Arguments:
-#   $@ - Error message to log
-# ==============================================================================
-log_error() {
-  log_line "ERROR" "$*" >&2
-}
-
-# ==============================================================================
-# FUNCTION: log_dryrun
-# Log dry-run action (simulation mode)
-#
-# Arguments:
-#   $@ - Action that would be performed
-# ==============================================================================
-log_dryrun() {
-  log_line "DRY-RUN" "$*"
+  case "$LEVEL" in
+    ERROR)
+      printf "%s [%s] %s\n" "$TIMESTAMP" "$LEVEL" "$MESSAGE" >&2
+      ;;
+    *)
+      printf "%s [%s] %s\n" "$TIMESTAMP" "$LEVEL" "$MESSAGE"
+      ;;
+  esac
 }
 
 # ==============================================================================
@@ -255,17 +225,17 @@ ensure_ssh_key() {
 
   if [ "$PRIV_EXISTS" -eq 1 ] && [ "$PUB_EXISTS" -eq 1 ]; then
     SSH_KEY_PREEXISTING=1
-    log_info "SSH key pair ($PRIVATE_KEY_PATH / $SSH_PUB_KEY_PATH) already exists."
+    log INFO "SSH key pair ($PRIVATE_KEY_PATH / $SSH_PUB_KEY_PATH) already exists."
     return 0
   fi
 
   if [ "$PRIV_EXISTS" -eq 1 ] && [ "$PUB_EXISTS" -eq 0 ]; then
     if [ "$DRY_RUN" -eq 1 ]; then
-      log_dryrun "Would derive public key $SSH_PUB_KEY_PATH from existing private key $PRIVATE_KEY_PATH."
+      log DRY-RUN "Would derive public key $SSH_PUB_KEY_PATH from existing private key $PRIVATE_KEY_PATH."
       SSH_KEY_PREEXISTING=1
       return 0
     fi
-    log_info "Deriving missing public key $SSH_PUB_KEY_PATH from $PRIVATE_KEY_PATH."
+    log INFO "Deriving missing public key $SSH_PUB_KEY_PATH from $PRIVATE_KEY_PATH."
     PUB_DIR="$(dirname "$SSH_PUB_KEY_PATH")"
     if [ "$PUB_DIR" != "." ] && [ "$PUB_DIR" != "/" ]; then
       mkdir -p "$PUB_DIR"
@@ -282,19 +252,19 @@ ensure_ssh_key() {
       SSH_PUB_KEY_PATH="$(generate_bootstrapper_key_path)"
       PRIVATE_KEY_PATH="$(private_key_from_pub "$SSH_PUB_KEY_PATH")"
       KEY_DIR="$(dirname "$PRIVATE_KEY_PATH")"
-      log_warn "Detected orphaned bootstrapper public key; switching to $PRIVATE_KEY_PATH (public $SSH_PUB_KEY_PATH)."
+      log WARN "Detected orphaned bootstrapper public key; switching to $PRIVATE_KEY_PATH (public $SSH_PUB_KEY_PATH)."
     else
-      log_error "Found orphaned public key at $SSH_PUB_KEY_PATH without private key $PRIVATE_KEY_PATH. Remove it manually or rerun with --unattended to create bootstrapper_<timestamp>."
+      log ERROR "Found orphaned public key at $SSH_PUB_KEY_PATH without private key $PRIVATE_KEY_PATH. Remove it manually or rerun with --unattended to create bootstrapper_<timestamp>."
       exit 1
     fi
   fi
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log_dryrun "Would generate SSH key at $PRIVATE_KEY_PATH (public $SSH_PUB_KEY_PATH)"
+    log DRY-RUN "Would generate SSH key at $PRIVATE_KEY_PATH (public $SSH_PUB_KEY_PATH)"
     return 0
   fi
 
-  log_info "Generating new SSH key at $PRIVATE_KEY_PATH (public $SSH_PUB_KEY_PATH)..."
+  log INFO "Generating new SSH key at $PRIVATE_KEY_PATH (public $SSH_PUB_KEY_PATH)..."
   if [ "$KEY_DIR" != "." ] && [ "$KEY_DIR" != "/" ]; then
     mkdir -p "$KEY_DIR"
     chmod 700 "$KEY_DIR"
@@ -313,29 +283,29 @@ ensure_ssh_key() {
 # ==============================================================================
 show_public_key() {
   if should_skip_key_interaction; then
-    log_info "Skipping public key display in unattended mode (key already present)."
+    log INFO "Skipping public key display in unattended mode (key already present)."
     return 0
   fi
 
   if [ ! -f "$SSH_PUB_KEY_PATH" ]; then
     if [ "$DRY_RUN" -eq 1 ]; then
-      log_dryrun "Would display SSH public key at $SSH_PUB_KEY_PATH"
+      log DRY-RUN "Would display SSH public key at $SSH_PUB_KEY_PATH"
     fi
     return 0
   fi
 
-  log_info "Public SSH key (add this to GitHub from $SSH_PUB_KEY_PATH):"
+  log INFO "Public SSH key (add this to GitHub from $SSH_PUB_KEY_PATH):"
   cat "$SSH_PUB_KEY_PATH"
 
-  log_info "QR code representation:"
+  log INFO "QR code representation:"
   if command -v qrencode >/dev/null 2>&1; then
     if [ "$DRY_RUN" -eq 1 ]; then
-      log_dryrun "Would render QR code via qrencode"
+      log DRY-RUN "Would render QR code via qrencode"
     else
       qrencode -t ANSIUTF8 < "$SSH_PUB_KEY_PATH"
     fi
   else
-    log_warn "qrencode not available; install it for QR output."
+    log WARN "qrencode not available; install it for QR output."
   fi
 }
 
@@ -448,7 +418,7 @@ package_name_for_tool() {
 ensure_apt_updated() {
   if [ "$APT_UPDATED" -eq 0 ]; then
     if [ "$DRY_RUN" -eq 1 ]; then
-      log_dryrun "Would run apt-get update"
+      log DRY-RUN "Would run apt-get update"
     else
       run_with_privilege apt-get update
     fi
@@ -473,10 +443,10 @@ install_tool_with_manager() {
   MANAGER="$2"
   PACKAGE_NAME="$(package_name_for_tool "$TOOL_TO_INSTALL" "$MANAGER")" || return 1
   if [ "$DRY_RUN" -eq 1 ]; then
-    log_dryrun "Would install $TOOL_TO_INSTALL via $MANAGER ($PACKAGE_NAME)"
+    log DRY-RUN "Would install $TOOL_TO_INSTALL via $MANAGER ($PACKAGE_NAME)"
     return 0
   fi
-  log_info "Installing $TOOL_TO_INSTALL via $MANAGER ($PACKAGE_NAME)"
+  log INFO "Installing $TOOL_TO_INSTALL via $MANAGER ($PACKAGE_NAME)"
   case "$MANAGER" in
     apt)
       ensure_apt_updated
@@ -522,7 +492,7 @@ install_missing_tools() {
   fi
 
   MANAGER="$(detect_pkg_manager)" || {
-    log_error "Automatic installation requested, but no supported package manager was detected."
+    log ERROR "Automatic installation requested, but no supported package manager was detected."
     return 1
   }
 
@@ -591,14 +561,14 @@ list_tools() {
 # ==============================================================================
 fail_missing_tools() {
   if [ -n "$REQUIRED_MISSING" ]; then
-    log_error "Missing required tools:"
+    log ERROR "Missing required tools:"
     list_tools "$REQUIRED_MISSING"
   fi
   if [ -n "$OPTIONAL_MISSING" ]; then
-    log_warn "Missing optional tools (recommended):"
+    log WARN "Missing optional tools (recommended):"
     list_tools "$OPTIONAL_MISSING"
   fi
-  log_error "Install the tools listed above and run this script again."
+  log ERROR "Install the tools listed above and run this script again."
   exit 1
 }
 
@@ -619,7 +589,7 @@ ensure_dependencies() {
   fi
 
   if [ "$INSTALL_MODE" = "prompt" ] && [ "$DRY_RUN" -eq 1 ]; then
-    log_dryrun "Would prompt before installing: $REQUIRED_MISSING $OPTIONAL_MISSING"
+    log DRY-RUN "Would prompt before installing: $REQUIRED_MISSING $OPTIONAL_MISSING"
     return 0
   fi
 
@@ -633,7 +603,7 @@ ensure_dependencies() {
 
   if [ "$INSTALL_MODE" = "no" ]; then
     if [ "$DRY_RUN" -eq 1 ]; then
-      log_dryrun "Would abort due to missing tools: $REQUIRED_MISSING"
+      log DRY-RUN "Would abort due to missing tools: $REQUIRED_MISSING"
     fi
     fail_missing_tools
   fi
@@ -657,7 +627,7 @@ ensure_dependencies() {
   fi
 
   if [ -n "$OPTIONAL_MISSING" ]; then
-    log_warn "Optional tooling missing (QR output skipped)."
+    log WARN "Optional tooling missing (QR output skipped)."
   fi
 }
 
@@ -674,11 +644,11 @@ ensure_dependencies() {
 maybe_wait_for_confirmation() {
   MESSAGE="$1"
   if should_skip_key_interaction; then
-    log_info "Skipping GitHub confirmation prompt in unattended mode (key already present)."
+    log INFO "Skipping GitHub confirmation prompt in unattended mode (key already present)."
     return 0
   fi
   if [ "$DRY_RUN" -eq 1 ]; then
-    log_dryrun "Would prompt: $MESSAGE"
+    log DRY-RUN "Would prompt: $MESSAGE"
     return 0
   fi
   printf "%s" "$MESSAGE"
@@ -695,7 +665,7 @@ maybe_wait_for_confirmation() {
 # ==============================================================================
 ensure_git_available() {
   if ! command -v git >/dev/null 2>&1; then
-    log_error "git not found. Install git manually before running this script."
+    log ERROR "git not found. Install git manually before running this script."
     exit 1
   fi
 }
@@ -763,16 +733,16 @@ private_key_from_pub() {
 clone_private_repo() {
   TARGET_DIR="$DEFAULT_TARGET_DIR"
   if [ -d "$TARGET_DIR" ]; then
-    log_info "Directory $TARGET_DIR already exists — reusing."
+    log INFO "Directory $TARGET_DIR already exists — reusing."
     return 0
   fi
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    log_dryrun "Would clone $REPO_URL (branch $BRANCH) into $TARGET_DIR"
+    log DRY-RUN "Would clone $REPO_URL (branch $BRANCH) into $TARGET_DIR"
     return 0
   fi
 
-  log_info "Cloning $REPO_URL (branch $BRANCH) into $TARGET_DIR"
+  log INFO "Cloning $REPO_URL (branch $BRANCH) into $TARGET_DIR"
   git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$TARGET_DIR"
 }
 
@@ -807,11 +777,11 @@ resolve_target_script_path() {
 ensure_target_script_exists() {
   TARGET_SCRIPT="$(resolve_target_script_path)"
   if [ "$DRY_RUN" -eq 1 ]; then
-    log_dryrun "Would run target script $TARGET_SCRIPT"
+    log DRY-RUN "Would run target script $TARGET_SCRIPT"
     return 0
   fi
   if [ ! -f "$TARGET_SCRIPT" ]; then
-    log_error "Target script $TARGET_SCRIPT not found."
+    log ERROR "Target script $TARGET_SCRIPT not found."
     exit 1
   fi
 }
@@ -835,7 +805,7 @@ execute_target_script() {
 
   TARGET_DIR="$DEFAULT_TARGET_DIR"
   if [ ! -d "$TARGET_DIR" ]; then
-    log_error "Target directory $TARGET_DIR not available."
+    log ERROR "Target directory $TARGET_DIR not available."
     exit 1
   fi
 
@@ -903,7 +873,7 @@ main() {
         ;;
       --ssh-pub-key)
         if [ $# -lt 2 ]; then
-          log_error "--ssh-pub-key requires a path argument."
+          log ERROR "--ssh-pub-key requires a path argument."
           usage
         fi
         SSH_PUB_KEY_PATH="$2"
@@ -921,7 +891,7 @@ main() {
         break
         ;;
       --*)
-        log_error "Unknown option: $1"
+        log ERROR "Unknown option: $1"
         usage
         ;;
       *)
@@ -966,7 +936,7 @@ main() {
   fi
 
   if [ -z "$SSH_PUB_KEY_PATH" ]; then
-    log_error "SSH public key path cannot be empty."
+    log ERROR "SSH public key path cannot be empty."
     exit 1
   fi
 
