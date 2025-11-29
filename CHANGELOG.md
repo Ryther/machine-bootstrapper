@@ -1,3 +1,14 @@
+## v1.0.1 (2025-11-29)
+
+### Bug Fixes
+
+- **bootstrap**: force SSH identity when cloning private repository
+
+### Documentation
+
+- **boostrap**: fix version in the docstring
+- **readme**: fix version badge and workflow reference
+
 ## v1.0.0 (2025-11-29)
 
 ### Bug Fixes
