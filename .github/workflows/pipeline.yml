@@ -83,43 +83,44 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
+      # Check if there are commits to bump (dry-run)
+      # Commitizen exits with code 21 when no commits match bump pattern
+      - name: Check if bump needed
+        id: check-bump
+        continue-on-error: true
+        run: |
+          pip install commitizen==4.10.0
+          cz bump --dry-run
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -eq 21 ]; then
+            echo "bump_needed=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No version bump needed (no commits matching bump pattern)"
+          elif [ $EXIT_CODE -eq 0 ]; then
+            echo "bump_needed=true" >> $GITHUB_OUTPUT
+            echo "✅ Version bump available"
+          else
+            echo "bump_needed=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Commitizen dry-run failed with code $EXIT_CODE"
+          fi
+
       # Commitizen handles version bumping, changelog generation, and git operations
+      # Only runs if dry-run detected commits to bump
       # Uses PERSONAL_ACCESS_TOKEN to allow triggering subsequent workflows
       # Outputs: version (e.g., "0.1.0"), sets env.REVISION
       - name: Create bump and changelog
+        if: steps.check-bump.outputs.bump_needed == 'true'
         id: cz
         uses: commitizen-tools/commitizen-action@bb4f1df6601e2a1a891506581b0c53acdc88e07d
         with:
           github_token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           commitizen_version: 4.10.0
           changelog_increment_filename: CHANGELOG-latest.md
-        continue-on-error: true
-
-      # Check if version was bumped by verifying the new version tag doesn't exist yet
-      # Commitizen may run successfully but not create a new version if no bump-worthy commits exist
-      - name: Check version bump
-        id: check-bump
-        run: |
-          if [ "${{ steps.cz.outcome }}" = "success" ] && [ -n "${{ env.REVISION }}" ]; then
-            NEW_VERSION="${{ env.REVISION }}"
-            # Check if tag already exists in repository
-            if git rev-parse "v${NEW_VERSION}" >/dev/null 2>&1; then
-              echo "bump_occurred=false" >> $GITHUB_OUTPUT
-              echo "ℹ️ Version v${NEW_VERSION} already exists, no new bump occurred"
-            else
-              echo "bump_occurred=true" >> $GITHUB_OUTPUT
-              echo "✅ New version bumped to ${NEW_VERSION}"
-            fi
-          else
-            echo "bump_occurred=false" >> $GITHUB_OUTPUT
-            echo "ℹ️ No version bump needed (commitizen did not produce a new version)"
-          fi
 
       # Build release artifacts:
       # - bootstrap-<version>.sh: versioned copy of main script
       # - bootstrap-<version>.sh.sha256: checksum for verification
       - name: Prepare release artifacts
-        if: steps.check-bump.outputs.bump_occurred == 'true'
+        if: steps.check-bump.outputs.bump_needed == 'true'
         run: |
           VERSION="${{ env.REVISION }}"
           cp bootstrap.sh "bootstrap-${VERSION}.sh"
@@ -130,7 +131,7 @@ jobs:
       # Uploads bootstrap script and checksum as assets
       # Uses incremental changelog as release body
       - name: Draft release with assets
-        if: steps.check-bump.outputs.bump_occurred == 'true'
+        if: steps.check-bump.outputs.bump_needed == 'true'
         uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe
         with:
           tag_name: v${{ env.REVISION }}
@@ -146,7 +147,7 @@ jobs:
       # Publish the draft release (makes it public)
       # Two-step process ensures immutable releases compliance
       - name: Publish release
-        if: steps.check-bump.outputs.bump_occurred == 'true'
+        if: steps.check-bump.outputs.bump_needed == 'true'
         uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe
         with:
           tag_name: v${{ env.REVISION }}
