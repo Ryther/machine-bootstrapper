@@ -1,6 +1,6 @@
 # machine-boostrapper
-![Static Badge](https://img.shields.io/badge/version-0.0.0-blue?style=plastic)
-[![ShellCheck](https://github.com/Ryther/machine-bootstrapper/actions/workflows/shellcheck.yml/badge.svg?branch=main)](https://github.com/Ryther/machine-bootstrapper/actions/workflows/shellcheck.yml?branch=main)
+![Static Badge](https://img.shields.io/badge/version-1.0.0-blue?style=plastic)
+[![ShellCheck](https://github.com/Ryther/machine-bootstrapper/actions/workflows/pipeline.yml/badge.svg?branch=main)](https://github.com/Ryther/machine-bootstrapper/actions/workflows/pipeline.yml?branch=main)
 
 Public bootstrap for a fresh machine — prepares base environment, SSH key, clones a private repo, and runs its provisioning script.
 
