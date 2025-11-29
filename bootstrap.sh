@@ -810,7 +810,7 @@ ensure_target_script_exists() {
 #   $@ - Arguments to forward to the provisioning script
 #
 # Description:
-#   Changes to target directory (if relative path), then executes the script.
+#   Resolves script path to absolute, changes to target directory, then executes.
 #   Uses sudo if available, otherwise runs directly.
 #   Attempts to execute script directly if executable, otherwise uses sh.
 # ==============================================================================
@@ -825,12 +825,13 @@ execute_target_script() {
     exit 1
   fi
 
-  if [ "${SCRIPT_PATH#/}" = "$SCRIPT_PATH" ]; then
-    cd "$TARGET_DIR"
-    RUN_SCRIPT="$SCRIPT_PATH"
-  else
-    RUN_SCRIPT="$(resolve_target_script_path)"
-  fi
+  # Always resolve to absolute path for consistent execution
+  RUN_SCRIPT="$(resolve_target_script_path)"
+
+  # Change to target directory (some scripts may expect to run from their own directory)
+  cd "$TARGET_DIR"
+
+  log INFO "Executing provisioning script: $RUN_SCRIPT"
 
   if [ -x "$RUN_SCRIPT" ]; then
     if [ -n "$SUDO_BIN" ]; then
