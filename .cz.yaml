@@ -16,7 +16,7 @@ commitizen:
     message_template: "{{change_type}}{% if scope %}({{scope}}){% endif %}: [gh-{{issue}}] {{message}}"
     example: "feat(api): [gh-42] add new endpoint for user authentication"
     schema: "<type>(<scope>): [gh-<issue>] <subject>"
-    schema_pattern: "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|devcontainer|conf)(\\(\\w+\\))?: \\[gh-\\d+\\] .+$"
+    schema_pattern: "^(feat|fix|docs|style|refactor|perf|test|build|cicd|chore|devcontainer|conf)(\\(\\w+\\))?: \\[gh-\\d+\\] .+$"
     bump_pattern: "^(feat|fix|perf|refactor|conf)"
     bump_map:
       feat: MINOR
@@ -30,22 +30,22 @@ commitizen:
       - refactor
       - perf
       - build
-      - ci
+      - cicd
       - docs
       - style
       - test
       - chore
       - devcontainer
       - conf
-    commit_parser: "^(?P<change_type>feat|fix|docs|style|refactor|perf|test|build|ci|chore|devcontainer|conf)(?:\\((?P<scope>[^)]+)\\))?!?: \\[gh-(?P<issue>\\d+)\\] (?P<message>.+)$"
-    changelog_pattern: "^(feat|fix|refactor|perf|build|ci|docs|style|test|chore|devcontainer|conf)(\\(.+\\))?: \\[gh-\\d+\\]"
+    commit_parser: "^(?P<change_type>feat|fix|docs|style|refactor|perf|test|build|cicd|chore|devcontainer|conf)(?:\\((?P<scope>[^)]+)\\))?!?: \\[gh-(?P<issue>\\d+)\\] (?P<message>.+)$"
+    changelog_pattern: "^(feat|fix|refactor|perf|build|cicd|docs|style|test|chore|devcontainer|conf)(\\(.+\\))?: \\[gh-\\d+\\]"
     change_type_map:
       feat: Features
       fix: Bug Fixes
       refactor: Code Refactoring
       perf: Performance Improvements
       build: Build System
-      ci: Continuous Integration
+      cicd: Continuous Integration/Delivery
       docs: Documentation
       style: Code Style
       test: Tests

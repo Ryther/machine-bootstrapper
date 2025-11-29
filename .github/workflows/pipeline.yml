@@ -1,0 +1,129 @@
+name: Pipeline
+
+# Main CI/CD workflow:
+# - On pull_request to main: runs ShellCheck linting (required check)
+# - On push to main: runs linting + automated version bump + release creation
+#
+# Flow:
+# 1. Feature PR → ShellCheck validates shell scripts
+# 2. PR with label "release: bump" → auto-bump-on-label.yml injects version bump commit
+# 3. Merge to main → this workflow runs bump job (if bump commit detected)
+# 4. tag-on-main.yml creates vX.Y.Z tag from bump commit
+# 5. Pipeline reruns on tag push → creates GitHub Release with assets
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  # Validates all shell scripts (.sh files + files with shell shebangs)
+  # Runs on all PRs and pushes to main
+  # Required check for branch protection
+  shellcheck-lint:
+    runs-on: ubuntu-latest
+    name: ShellCheck Lint
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@c2d88d3ecc89a9ef08eebf45d9637801dcee7eb5
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Discover shell scripts
+        id: find-scripts
+        run: |
+          SHELL_FILES=$(find . -type f -name "*.sh" ! -path "./.git/*" ! -path "./node_modules/*")
+          SHEBANG_FILES=$(find . -type f ! -name "*.sh" ! -path "./.git/*" ! -path "./node_modules/*" -exec sh -c '
+            head -n 1 "$1" | grep -qE "^#!/(usr/bin/env |bin/)(sh|bash|zsh|fish)"
+          ' sh {} \; -print)
+          ALL_SCRIPTS=$(echo "$SHELL_FILES $SHEBANG_FILES" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+          if [ -z "$ALL_SCRIPTS" ]; then
+            echo "No shell scripts found"
+            echo "scripts=" >> $GITHUB_OUTPUT
+          else
+            echo "Found shell scripts:"
+            echo "$ALL_SCRIPTS" | tr ' ' '\n'
+            echo "scripts=$ALL_SCRIPTS" >> $GITHUB_OUTPUT
+          fi
+
+      - name: ShellCheck (style, non-blocking)
+        if: steps.find-scripts.outputs.scripts != ''
+        continue-on-error: true
+        run: |
+          echo "::group::ShellCheck - Style (informative)"
+          shellcheck -s sh -S style ${{ steps.find-scripts.outputs.scripts }} || echo "⚠️ Style issues (non-blocking)"
+          echo "::endgroup::"
+
+      - name: ShellCheck (warnings blocking)
+        if: steps.find-scripts.outputs.scripts != ''
+        run: |
+          echo "::group::ShellCheck - Warnings/Errors"
+          shellcheck -s sh -S warning ${{ steps.find-scripts.outputs.scripts }}
+          echo "::endgroup::"
+
+  # Automated version bump and GitHub Release creation
+  # Only runs on push to main (after PR merge)
+  # Requires ShellCheck to pass first
+  # Creates versioned bootstrap script, SHA256 checksum, and GitHub Release
+  bump-version:
+    name: Version Bump & Release
+    needs: shellcheck-lint
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@c2d88d3ecc89a9ef08eebf45d9637801dcee7eb5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+      # Commitizen handles version bumping, changelog generation, and git operations
+      # Uses PERSONAL_ACCESS_TOKEN to allow triggering subsequent workflows
+      # Outputs: version (e.g., "0.1.0"), sets env.REVISION
+      - name: Create bump and changelog
+        id: cz
+        uses: commitizen-tools/commitizen-action@bb4f1df6601e2a1a891506581b0c53acdc88e07d
+        with:
+          github_token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          commitizen_version: 4.10.0
+          changelog_increment_filename: CHANGELOG-latest.md
+
+      # Build release artifacts:
+      # - bootstrap-<version>.sh: versioned copy of main script
+      # - bootstrap-<version>.sh.sha256: checksum for verification
+      - name: Prepare release artifacts
+        run: |
+          VERSION="${{ env.REVISION }}"
+          cp bootstrap.sh "bootstrap-${VERSION}.sh"
+          sha256sum "bootstrap-${VERSION}.sh" > "bootstrap-${VERSION}.sh.sha256"
+          ls -lh "bootstrap-${VERSION}.sh" "bootstrap-${VERSION}.sh.sha256"
+
+      # Create draft release first (required for immutable releases)
+      # Uploads bootstrap script and checksum as assets
+      # Uses incremental changelog as release body
+      - name: Draft release with assets
+        uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe
+        with:
+          tag_name: v${{ env.REVISION }}
+          draft: true
+          body_path: CHANGELOG-latest.md
+          files: |
+            bootstrap-${{ env.REVISION }}.sh
+            bootstrap-${{ env.REVISION }}.sh.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+      # Publish the draft release (makes it public)
+      # Two-step process ensures immutable releases compliance
+      - name: Publish release
+        uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe
+        with:
+          tag_name: v${{ env.REVISION }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
