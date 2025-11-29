@@ -44,22 +44,33 @@ When dependencies are missing the script asks whether it may install them. Answe
 
 ```bash
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/Ryther/machine-boostrapper/main/bootstrap.sh)" \
-  -- [--auto-install] <git@github.com:<your-user>/setup-private.git> [branch] [script-path] [-- script-args...]
+  -- [OPTIONS] --repo <git@github.com:<your-user>/setup-private.git> [-- script-args...]
 ```
 
-### Arguments & flags
+### Required Parameters
 
-- `--auto-install` / `--no-install` — allow or refuse automatic dependency installation (the prompt uses the same policy unless overridden per run).
-- `--dry-run` — simulate every step (including dependency prompts) without modifying the machine.
-- `-v, --verbose` — add timestamps to every log line and enable `set -x` tracing for deeper diagnostics.
-- `--unattended` — suppress every interactive confirmation (e.g., orphaned key handling) and skip public-key display / prompts when the bootstrapper key already exists; combine with `--auto-install` for a fully non-interactive run.
-- `--ssh-pub-key PATH` — override the SSH public key location (defaults to `~/.ssh/bootstrapper.pub`). The private key lives next to it (same filename without `.pub`).
-- `<git repo>` — SSH URL to your private provisioning repository.
-- `[branch]` — defaults to `main`.
-- `[script-path]` — relative or absolute path to the provisioning script. Defaults to `bootstrap.sh` inside `~/setup-private`.
-- `[-- script-args...]` — optional arguments forwarded verbatim to the provisioning script. Use `--` to skip overriding the script path while still passing arguments.
+- `--repo URL` — SSH URL to your private provisioning repository
 
-Our **baseline standard** assumes every `setup-private` repo exposes a root-level `bootstrap.sh`. Teams with different entry points can override `script-path` per invocation without forking this public bootstrapper.
+### Optional Parameters
+
+- `--branch NAME` — Branch to clone (default: `main`)
+- `--script PATH` — Provisioning script path (default: `bootstrap.sh`)
+- `--ssh-pub-key PATH` — SSH public key path (default: `~/.ssh/bootstrapper.pub`). The private key lives next to it (same filename without `.pub`)
+
+### Flags
+
+- `--auto-install` — Automatically install missing dependencies without prompting
+- `--no-install` — Never install dependencies automatically (fail if missing)
+- `--dry-run` — Simulate every step without modifying the machine
+- `-v, --verbose` — Add timestamps to every log line and enable `set -x` tracing
+- `--unattended` — Suppress all interactive confirmations; combine with `--auto-install` for fully non-interactive runs
+- `-h, --help` — Show usage information
+
+### Script Arguments
+
+Arguments after `--` are forwarded verbatim to the provisioning script.
+
+Our **baseline standard** assumes every `setup-private` repo exposes a root-level `bootstrap.sh`. Teams with different entry points can use `--script` to override without forking this public bootstrapper.
 
 ### Examples
 
@@ -67,14 +78,21 @@ Use project defaults:
 
 ```bash
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/acme/machine-boostrapper/main/bootstrap.sh)" \
-  -- git@github.com:acme/setup-private.git
+  -- --repo git@github.com:acme/setup-private.git
 ```
 
-Custom script and arguments:
+Custom branch, script, and arguments:
 
 ```bash
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/acme/machine-boostrapper/main/bootstrap.sh)" \
-  -- --auto-install git@github.com:acme/setup-private.git develop scripts/workstation.sh -- --with-gpu --timezone UTC
+  -- --auto-install --repo git@github.com:acme/setup-private.git --branch develop --script scripts/workstation.sh -- --with-gpu --timezone UTC
+```
+
+Fully unattended:
+
+```bash
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/acme/machine-boostrapper/main/bootstrap.sh)" \
+  -- --unattended --auto-install --repo git@github.com:acme/setup.git
 ```
 
 ### SSH key naming

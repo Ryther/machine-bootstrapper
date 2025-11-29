@@ -15,21 +15,26 @@
 #   - qrencode (optional, for QR code output)
 #
 # Usage:
-#   sh bootstrap.sh [OPTIONS] <git-ssh-url> [branch] [script-path] [-- script-args]
+#   sh bootstrap.sh [OPTIONS] --repo <git-ssh-url> [-- script-args]
+#
+# Required:
+#   --repo URL        Git SSH URL of the private provisioning repository
 #
 # Options:
+#   --branch NAME     Branch to clone (default: main)
+#   --script PATH     Provisioning script path (default: bootstrap.sh)
+#   --ssh-pub-key PATH  SSH public key path (default: ~/.ssh/bootstrapper.pub)
 #   --auto-install    Automatically install missing dependencies
 #   --no-install      Never install dependencies (fail if missing)
 #   --dry-run         Simulate actions without making changes
 #   -v, --verbose     Enable tracing and timestamped logs
 #   --unattended      Skip all interactive prompts
-#   --ssh-pub-key     Override SSH public key path (default: ~/.ssh/bootstrapper.pub)
 #   -h, --help        Show usage information
 #
 # Examples:
-#   sh bootstrap.sh git@github.com:user/setup-private.git
-#   sh bootstrap.sh --auto-install git@github.com:user/setup.git main bootstrap.sh
-#   sh bootstrap.sh --unattended --auto-install git@github.com:user/setup.git
+#   sh bootstrap.sh --repo git@github.com:user/setup-private.git
+#   sh bootstrap.sh --auto-install --repo git@github.com:user/setup.git --branch develop --script scripts/setup.sh
+#   sh bootstrap.sh --unattended --auto-install --repo git@github.com:user/setup.git -- --custom-flag
 #
 # Exit Codes:
 #   0 - Success
@@ -93,18 +98,25 @@ SSH_KEY_PREEXISTING=0
 #   arguments, and usage examples.
 # ==============================================================================
 usage() {
-  printf "%s\n" "Usage: $0 [--auto-install|--no-install] [--dry-run] [--verbose] [--unattended] [--ssh-pub-key PATH] [--] <git-ssh-url> [branch] [script-path] [script-args ...]"
+  printf "%s\n" "Usage: $0 [OPTIONS] --repo <git-ssh-url> [-- script-args ...]"
+  printf "%s\n" ""
+  printf "%s\n" "Required:"
+  printf "%s\n" "  --repo URL        Git SSH URL of the private provisioning repository"
+  printf "%s\n" ""
+  printf "%s\n" "Options:"
+  printf "%s\n" "  --branch NAME     Branch to clone (default: main)"
+  printf "%s\n" "  --script PATH     Provisioning script path (default: bootstrap.sh)"
+  printf "%s\n" "  --ssh-pub-key PATH  SSH public key path (default: ~/.ssh/bootstrapper.pub)"
   printf "%s\n" "  --auto-install    Automatically install missing dependencies"
   printf "%s\n" "  --no-install      Never install dependencies automatically (fail if missing)"
   printf "%s\n" "  --dry-run         Describe actions without making changes"
   printf "%s\n" "  -v, --verbose     Enable tracing and timestamped logs"
-  printf "%s\n" "  --unattended      Skip all interactive confirmations (required for orphaned key fallback)"
-  printf "%s\n" "  --ssh-pub-key     Path to the SSH public key (default: $DEFAULT_SSH_PUB_KEY_PATH)"
+  printf "%s\n" "  --unattended      Skip all interactive confirmations"
   printf "%s\n" "  -h, --help        Show this help message"
   printf "%s\n" ""
   printf "%s\n" "Examples:"
-  printf "%s\n" "  $0 git@github.com:user/setup-private.git"
-  printf "%s\n" "  $0 --auto-install git@github.com:user/setup-private.git main scripts/setup.sh -- --flag value"
+  printf "%s\n" "  $0 --repo git@github.com:user/setup-private.git"
+  printf "%s\n" "  $0 --auto-install --repo git@github.com:user/setup.git --branch develop --script scripts/setup.sh -- --flag value"
   exit 1
 }
 
@@ -853,8 +865,48 @@ execute_target_script() {
 #   8. Execute target provisioning script with forwarded arguments
 # ==============================================================================
 main() {
+  REPO_URL=""
+  BRANCH="$DEFAULT_BRANCH"
+  SCRIPT_PATH="$DEFAULT_SCRIPT_PATH"
+
   while [ $# -gt 0 ]; do
     case "$1" in
+      --repo)
+        if [ $# -lt 2 ]; then
+          log ERROR "--repo requires a URL argument."
+          usage
+        fi
+        REPO_URL="$2"
+        shift 2
+        ;;
+      --repo=*)
+        REPO_URL="${1#*=}"
+        shift
+        ;;
+      --branch)
+        if [ $# -lt 2 ]; then
+          log ERROR "--branch requires a branch name argument."
+          usage
+        fi
+        BRANCH="$2"
+        shift 2
+        ;;
+      --branch=*)
+        BRANCH="${1#*=}"
+        shift
+        ;;
+      --script)
+        if [ $# -lt 2 ]; then
+          log ERROR "--script requires a path argument."
+          usage
+        fi
+        SCRIPT_PATH="$2"
+        shift 2
+        ;;
+      --script=*)
+        SCRIPT_PATH="${1#*=}"
+        shift
+        ;;
       --auto-install)
         INSTALL_MODE="yes"
         shift
@@ -899,44 +951,17 @@ main() {
         usage
         ;;
       *)
-        break
+        log ERROR "Unexpected argument: $1"
+        log ERROR "Use --repo to specify the repository URL."
+        usage
         ;;
     esac
   done
 
-  if [ $# -lt 1 ]; then
+  # Validate required parameters
+  if [ -z "$REPO_URL" ]; then
+    log ERROR "Missing required parameter: --repo"
     usage
-  fi
-
-  REPO_URL="$1"
-  shift
-
-  if [ $# -gt 0 ]; then
-    if [ "$1" = "--" ]; then
-      BRANCH="$DEFAULT_BRANCH"
-      shift
-    else
-      BRANCH="$1"
-      shift
-    fi
-  else
-    BRANCH="$DEFAULT_BRANCH"
-  fi
-
-  if [ $# -gt 0 ]; then
-    if [ "$1" = "--" ]; then
-      SCRIPT_PATH="$DEFAULT_SCRIPT_PATH"
-      shift
-    else
-      SCRIPT_PATH="$1"
-      shift
-    fi
-  else
-    SCRIPT_PATH="$DEFAULT_SCRIPT_PATH"
-  fi
-
-  if [ $# -gt 0 ] && [ "$1" = "--" ]; then
-    shift
   fi
 
   if [ -z "$SSH_PUB_KEY_PATH" ]; then
