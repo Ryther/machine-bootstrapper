@@ -95,17 +95,24 @@ jobs:
           changelog_increment_filename: CHANGELOG-latest.md
         continue-on-error: true
 
-      # Check if version was bumped (commitizen exits with code 21 when no bump needed)
-      # Skip release creation if no version change occurred
+      # Check if version was bumped by verifying the new version tag doesn't exist yet
+      # Commitizen may run successfully but not create a new version if no bump-worthy commits exist
       - name: Check version bump
         id: check-bump
         run: |
           if [ "${{ steps.cz.outcome }}" = "success" ] && [ -n "${{ env.REVISION }}" ]; then
-            echo "bump_occurred=true" >> $GITHUB_OUTPUT
-            echo "✅ Version bumped to ${{ env.REVISION }}"
+            NEW_VERSION="${{ env.REVISION }}"
+            # Check if tag already exists in repository
+            if git rev-parse "v${NEW_VERSION}" >/dev/null 2>&1; then
+              echo "bump_occurred=false" >> $GITHUB_OUTPUT
+              echo "ℹ️ Version v${NEW_VERSION} already exists, no new bump occurred"
+            else
+              echo "bump_occurred=true" >> $GITHUB_OUTPUT
+              echo "✅ New version bumped to ${NEW_VERSION}"
+            fi
           else
             echo "bump_occurred=false" >> $GITHUB_OUTPUT
-            echo "ℹ️ No version bump needed (no commits matching bump pattern)"
+            echo "ℹ️ No version bump needed (commitizen did not produce a new version)"
           fi
 
       # Build release artifacts:
