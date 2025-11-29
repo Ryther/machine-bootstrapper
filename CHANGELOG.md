@@ -1,3 +1,9 @@
+## v2.0.1 (2025-11-29)
+
+### Bug Fixes
+
+- **bootstrap**: use consistent absolute path for script execution
+
 ## v2.0.0 (2025-11-29)
 
 ### Features
