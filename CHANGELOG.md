@@ -1,3 +1,9 @@
+## v2.0.0 (2025-11-29)
+
+### Features
+
+- **bootstrap**: replace positional params with explicit flags
+
 ## v1.0.1 (2025-11-29)
 
 ### Bug Fixes
