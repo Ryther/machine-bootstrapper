@@ -93,11 +93,26 @@ jobs:
           github_token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           commitizen_version: 4.10.0
           changelog_increment_filename: CHANGELOG-latest.md
+        continue-on-error: true
+
+      # Check if version was bumped (commitizen exits with code 21 when no bump needed)
+      # Skip release creation if no version change occurred
+      - name: Check version bump
+        id: check-bump
+        run: |
+          if [ "${{ steps.cz.outcome }}" = "success" ] && [ -n "${{ env.REVISION }}" ]; then
+            echo "bump_occurred=true" >> $GITHUB_OUTPUT
+            echo "✅ Version bumped to ${{ env.REVISION }}"
+          else
+            echo "bump_occurred=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No version bump needed (no commits matching bump pattern)"
+          fi
 
       # Build release artifacts:
       # - bootstrap-<version>.sh: versioned copy of main script
       # - bootstrap-<version>.sh.sha256: checksum for verification
       - name: Prepare release artifacts
+        if: steps.check-bump.outputs.bump_occurred == 'true'
         run: |
           VERSION="${{ env.REVISION }}"
           cp bootstrap.sh "bootstrap-${VERSION}.sh"
@@ -108,6 +123,7 @@ jobs:
       # Uploads bootstrap script and checksum as assets
       # Uses incremental changelog as release body
       - name: Draft release with assets
+        if: steps.check-bump.outputs.bump_occurred == 'true'
         uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe
         with:
           tag_name: v${{ env.REVISION }}
@@ -123,6 +139,7 @@ jobs:
       # Publish the draft release (makes it public)
       # Two-step process ensures immutable releases compliance
       - name: Publish release
+        if: steps.check-bump.outputs.bump_occurred == 'true'
         uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe
         with:
           tag_name: v${{ env.REVISION }}
