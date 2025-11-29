@@ -742,8 +742,12 @@ clone_private_repo() {
     return 0
   fi
 
+  # Force SSH to use the bootstrapper identity explicitly
+  PRIVATE_KEY_PATH="$(private_key_from_pub "$SSH_PUB_KEY_PATH")"
+
   log INFO "Cloning $REPO_URL (branch $BRANCH) into $TARGET_DIR"
-  git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$TARGET_DIR"
+  GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+    git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$TARGET_DIR"
 }
 
 # ==============================================================================
