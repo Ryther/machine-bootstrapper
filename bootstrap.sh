@@ -838,13 +838,11 @@ ensure_target_script_exists() {
 # Description:
 #   Resolves script path to absolute, changes to target directory, then executes.
 #   Runs with sudo only if --sudo-script flag was set.
+#   In dry-run mode: prompts to execute provisioning script with --dry-run flag
+#   (auto-accepts in unattended mode).
 #   Attempts to execute script directly if executable, otherwise uses sh.
 # ==============================================================================
 execute_target_script() {
-  if [ "$DRY_RUN" -eq 1 ]; then
-    return 0
-  fi
-
   TARGET_DIR="$DEFAULT_TARGET_DIR"
   if [ ! -d "$TARGET_DIR" ]; then
     log ERROR "Target directory $TARGET_DIR not available."
@@ -857,6 +855,45 @@ execute_target_script() {
   # Change to target directory (some scripts may expect to run from their own directory)
   cd "$TARGET_DIR"
 
+  # Handle dry-run mode: ask if provisioning script should be executed with --dry-run
+  if [ "$DRY_RUN" -eq 1 ]; then
+    RUN_PROVISIONING=0
+    if [ "$UNATTENDED" -eq 1 ]; then
+      log INFO "Dry-run mode: automatically executing provisioning script with --dry-run flag (unattended)."
+      RUN_PROVISIONING=1
+    else
+      if prompt_yes_no "Dry-run mode: execute provisioning script with --dry-run flag?"; then
+        RUN_PROVISIONING=1
+      else
+        log INFO "Skipping provisioning script execution in dry-run mode."
+        return 0
+      fi
+    fi
+
+    if [ "$RUN_PROVISIONING" -eq 1 ]; then
+      log INFO "Executing provisioning script in dry-run mode: $RUN_SCRIPT --dry-run"
+      if [ "$SUDO_SCRIPT" -eq 1 ]; then
+        log INFO "Running with sudo privilege"
+      fi
+
+      if [ -x "$RUN_SCRIPT" ]; then
+        if [ "$SUDO_SCRIPT" -eq 1 ] && [ -n "$SUDO_BIN" ]; then
+          "$SUDO_BIN" "$RUN_SCRIPT" --dry-run "$@"
+        else
+          "$RUN_SCRIPT" --dry-run "$@"
+        fi
+      else
+        if [ "$SUDO_SCRIPT" -eq 1 ] && [ -n "$SUDO_BIN" ]; then
+          "$SUDO_BIN" sh "$RUN_SCRIPT" --dry-run "$@"
+        else
+          sh "$RUN_SCRIPT" --dry-run "$@"
+        fi
+      fi
+    fi
+    return 0
+  fi
+
+  # Normal execution (not dry-run)
   log INFO "Executing provisioning script: $RUN_SCRIPT"
   if [ "$SUDO_SCRIPT" -eq 1 ]; then
     log INFO "Running with sudo privilege"
