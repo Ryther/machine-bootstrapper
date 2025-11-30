@@ -101,6 +101,7 @@ UNATTENDED=0
 SSH_KEY_PREEXISTING=0
 SUDO_SCRIPT=0
 PROVISIONING_TAG=""
+TEMP_REPO_DIR=""
 
 # Static script version (kept in sync with header above)
 VERSION="3.3.1"
@@ -758,18 +759,24 @@ private_key_from_pub() {
 # Description:
 #   If TARGET_DIR doesn't exist: clones REPO_URL (branch BRANCH) using shallow clone.
 #   If TARGET_DIR exists: updates to latest version from remote (git pull).
+#   In dry-run mode: clones into a temporary directory instead of DEFAULT_TARGET_DIR.
 #   Always ensures the repository is at the latest version before script execution.
 # ==============================================================================
 clone_or_update_repo() {
-  TARGET_DIR="$DEFAULT_TARGET_DIR"
   PRIVATE_KEY_PATH="$(private_key_from_pub "$SSH_PUB_KEY_PATH")"
 
-  if [ -d "$TARGET_DIR" ]; then
-    if [ "$DRY_RUN" -eq 1 ]; then
-      log DRY-RUN "Would update existing repository at $TARGET_DIR"
-      return 0
-    fi
+  # In dry-run mode, use a temporary directory
+  if [ "$DRY_RUN" -eq 1 ]; then
+    TEMP_REPO_DIR="$(mktemp -d -t bootstrapper-XXXXXX)"
+    TARGET_DIR="$TEMP_REPO_DIR"
+    log INFO "Dry-run mode: using temporary directory $TARGET_DIR"
+  else
+    TARGET_DIR="$DEFAULT_TARGET_DIR"
+  fi
 
+  if [ -d "$TARGET_DIR" ]; then
+    # In dry-run mode with temp dir, this won't happen (temp dir is always new)
+    # In normal mode, update existing repository
     log INFO "Repository $TARGET_DIR already exists — updating to latest version..."
 
     # Change to repo directory and update
@@ -797,11 +804,7 @@ clone_or_update_repo() {
     return 0
   fi
 
-  if [ "$DRY_RUN" -eq 1 ]; then
-    log DRY-RUN "Would clone $REPO_URL (branch $BRANCH) into $TARGET_DIR"
-    return 0
-  fi
-
+  # Clone repository (works for both normal and dry-run mode)
   if [ -n "$PROVISIONING_TAG" ]; then
     log INFO "Cloning $REPO_URL (tag $PROVISIONING_TAG) into $TARGET_DIR"
     GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
@@ -821,14 +824,20 @@ clone_or_update_repo() {
 # Convert script path to absolute path
 #
 # Description:
-#   If SCRIPT_PATH is relative, prepends DEFAULT_TARGET_DIR.
+#   If SCRIPT_PATH is relative, prepends TARGET_DIR (temp or default).
 #   If absolute, returns as-is.
 #
 # Returns:
 #   String: Absolute path to target script
 # ==============================================================================
 resolve_target_script_path() {
-  TARGET_DIR="$DEFAULT_TARGET_DIR"
+  # Use temp directory if set (dry-run mode), otherwise use default
+  if [ -n "$TEMP_REPO_DIR" ]; then
+    TARGET_DIR="$TEMP_REPO_DIR"
+  else
+    TARGET_DIR="$DEFAULT_TARGET_DIR"
+  fi
+
   if [ "${SCRIPT_PATH#/}" = "$SCRIPT_PATH" ]; then
     printf "%s" "$TARGET_DIR/$SCRIPT_PATH"
   else
@@ -842,14 +851,10 @@ resolve_target_script_path() {
 #
 # Description:
 #   Checks for existence of the script to be executed from the private repo.
-#   Exits with error if not found (unless in dry-run mode).
+#   In dry-run mode with temp dir, the script should exist after cloning.
 # ==============================================================================
 ensure_target_script_exists() {
   TARGET_SCRIPT="$(resolve_target_script_path)"
-  if [ "$DRY_RUN" -eq 1 ]; then
-    log DRY-RUN "Would run target script $TARGET_SCRIPT"
-    return 0
-  fi
   if [ ! -f "$TARGET_SCRIPT" ]; then
     log ERROR "Target script $TARGET_SCRIPT not found."
     exit 1
@@ -868,10 +873,17 @@ ensure_target_script_exists() {
 #   Runs with sudo only if --sudo-script flag was set.
 #   In dry-run mode: prompts to execute provisioning script with --dry-run flag
 #   (auto-accepts in unattended mode).
+#   Uses temporary directory if set (dry-run mode).
 #   Attempts to execute script directly if executable, otherwise uses sh.
 # ==============================================================================
 execute_target_script() {
-  TARGET_DIR="$DEFAULT_TARGET_DIR"
+  # Use temp directory if set (dry-run mode), otherwise use default
+  if [ -n "$TEMP_REPO_DIR" ]; then
+    TARGET_DIR="$TEMP_REPO_DIR"
+  else
+    TARGET_DIR="$DEFAULT_TARGET_DIR"
+  fi
+
   if [ ! -d "$TARGET_DIR" ]; then
     log ERROR "Target directory $TARGET_DIR not available."
     exit 1
@@ -1096,6 +1108,12 @@ main() {
   ensure_target_script_exists
 
   execute_target_script "$@"
+
+  # Cleanup temporary directory if used
+  if [ -n "$TEMP_REPO_DIR" ] && [ -d "$TEMP_REPO_DIR" ]; then
+    log INFO "Cleaning up temporary directory: $TEMP_REPO_DIR"
+    rm -rf "$TEMP_REPO_DIR"
+  fi
 }
 
 main "$@"
