@@ -107,6 +107,7 @@ SSH_PUB_KEY_PATH="$DEFAULT_SSH_PUB_KEY_PATH"
 UNATTENDED=0
 SSH_KEY_PREEXISTING=0
 SUDO_SCRIPT=0
+PROVISIONING_TAG=""
 
 # ==============================================================================
 # FUNCTION: usage
@@ -784,12 +785,17 @@ clone_or_update_repo() {
       exit 1
     fi
 
-    # Fetch latest
+    # Fetch latest and tags
     GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
-      git fetch origin "$BRANCH"
+      git fetch --tags origin "$BRANCH"
 
-    # Reset to remote branch (hard reset to ensure clean state)
-    git reset --hard "origin/$BRANCH"
+    if [ -n "$PROVISIONING_TAG" ]; then
+      # Checkout specific tag (detached HEAD)
+      git checkout -f "$PROVISIONING_TAG"
+    else
+      # Reset to remote branch (hard reset to ensure clean state)
+      git reset --hard "origin/$BRANCH"
+    fi
 
     log INFO "Repository updated to latest version."
     return 0
@@ -800,9 +806,18 @@ clone_or_update_repo() {
     return 0
   fi
 
-  log INFO "Cloning $REPO_URL (branch $BRANCH) into $TARGET_DIR"
-  GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
-    git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$TARGET_DIR"
+  if [ -n "$PROVISIONING_TAG" ]; then
+    log INFO "Cloning $REPO_URL (tag $PROVISIONING_TAG) into $TARGET_DIR"
+    GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+      git clone --depth 1 "$REPO_URL" "$TARGET_DIR"
+    cd "$TARGET_DIR"
+    git fetch --tags
+    git checkout -f "$PROVISIONING_TAG"
+  else
+    log INFO "Cloning $REPO_URL (branch $BRANCH) into $TARGET_DIR"
+    GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+      git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$TARGET_DIR"
+  fi
 }
 
 # ==============================================================================
@@ -989,6 +1004,18 @@ main() {
         ;;
       --script=*)
         SCRIPT_PATH="${1#*=}"
+        shift
+        ;;
+      --provisioning-tag)
+        if [ $# -lt 2 ]; then
+          log ERROR "--provisioning-tag requires a tag name argument."
+          usage
+        fi
+        PROVISIONING_TAG="$2"
+        shift 2
+        ;;
+      --provisioning-tag=*)
+        PROVISIONING_TAG="${1#*=}"
         shift
         ;;
       --sudo-script)
