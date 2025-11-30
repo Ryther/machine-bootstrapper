@@ -24,6 +24,7 @@
 #   --branch NAME     Branch to clone (default: main)
 #   --script PATH     Provisioning script path (default: bootstrap.sh)
 #   --ssh-pub-key PATH  SSH public key path (default: ~/.ssh/bootstrapper.pub)
+#   --sudo-script     Run provisioning script with sudo (default: no)
 #   --auto-install    Automatically install missing dependencies
 #   --no-install      Never install dependencies (fail if missing)
 #   --dry-run         Simulate actions without making changes
@@ -88,6 +89,7 @@ SUDO_BIN=""
 SSH_PUB_KEY_PATH="$DEFAULT_SSH_PUB_KEY_PATH"
 UNATTENDED=0
 SSH_KEY_PREEXISTING=0
+SUDO_SCRIPT=0
 
 # ==============================================================================
 # FUNCTION: usage
@@ -107,6 +109,7 @@ usage() {
   printf "%s\n" "  --branch NAME     Branch to clone (default: main)"
   printf "%s\n" "  --script PATH     Provisioning script path (default: bootstrap.sh)"
   printf "%s\n" "  --ssh-pub-key PATH  SSH public key path (default: ~/.ssh/bootstrapper.pub)"
+  printf "%s\n" "  --sudo-script     Run provisioning script with sudo (default: no)"
   printf "%s\n" "  --auto-install    Automatically install missing dependencies"
   printf "%s\n" "  --no-install      Never install dependencies automatically (fail if missing)"
   printf "%s\n" "  --dry-run         Describe actions without making changes"
@@ -811,7 +814,7 @@ ensure_target_script_exists() {
 #
 # Description:
 #   Resolves script path to absolute, changes to target directory, then executes.
-#   Uses sudo if available, otherwise runs directly.
+#   Runs with sudo only if --sudo-script flag was set.
 #   Attempts to execute script directly if executable, otherwise uses sh.
 # ==============================================================================
 execute_target_script() {
@@ -832,15 +835,18 @@ execute_target_script() {
   cd "$TARGET_DIR"
 
   log INFO "Executing provisioning script: $RUN_SCRIPT"
+  if [ "$SUDO_SCRIPT" -eq 1 ]; then
+    log INFO "Running with sudo privilege"
+  fi
 
   if [ -x "$RUN_SCRIPT" ]; then
-    if [ -n "$SUDO_BIN" ]; then
+    if [ "$SUDO_SCRIPT" -eq 1 ] && [ -n "$SUDO_BIN" ]; then
       "$SUDO_BIN" "$RUN_SCRIPT" "$@"
     else
       "$RUN_SCRIPT" "$@"
     fi
   else
-    if [ -n "$SUDO_BIN" ]; then
+    if [ "$SUDO_SCRIPT" -eq 1 ] && [ -n "$SUDO_BIN" ]; then
       "$SUDO_BIN" sh "$RUN_SCRIPT" "$@"
     else
       sh "$RUN_SCRIPT" "$@"
@@ -906,6 +912,10 @@ main() {
         ;;
       --script=*)
         SCRIPT_PATH="${1#*=}"
+        shift
+        ;;
+      --sudo-script)
+        SUDO_SCRIPT=1
         shift
         ;;
       --auto-install)
