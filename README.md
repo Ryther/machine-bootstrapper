@@ -47,6 +47,24 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/Ryther/machine-boostrapper
   -- [OPTIONS] --repo <git@github.com:<your-user>/setup-private.git> [-- script-args...]
 ```
 
+### Use a specific bootstrapper version
+
+Run a specific tagged version by referencing the tag in the raw URL:
+
+```bash
+BOOTSTRAP_TAG=v3.2.0
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/Ryther/machine-boostrapper/${BOOTSTRAP_TAG}/bootstrap.sh)" \
+  -- --repo git@github.com:<your-user>/setup-private.git
+```
+
+You can also pin to a commit SHA:
+
+```bash
+COMMIT_SHA=0123456789abcdef...
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/Ryther/machine-boostrapper/${COMMIT_SHA}/bootstrap.sh)" \
+  -- --repo git@github.com:<your-user>/setup-private.git
+```
+
 ### Required Parameters
 
 - `--repo URL` — SSH URL to your private provisioning repository
@@ -54,6 +72,7 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/Ryther/machine-boostrapper
 ### Optional Parameters
 
 - `--branch NAME` — Branch to clone (default: `main`)
+- `--provisioning-tag TAG` — Checkout a specific tag in the provisioning repository (overrides branch)
 - `--script PATH` — Provisioning script path (default: `bootstrap.sh`)
 - `--ssh-pub-key PATH` — SSH public key path (default: `~/.ssh/bootstrapper.pub`). The private key lives next to it (same filename without `.pub`)
 
