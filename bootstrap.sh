@@ -738,17 +738,43 @@ private_key_from_pub() {
 }
 
 # ==============================================================================
-# FUNCTION: clone_private_repo
-# Clone the private provisioning repository
+# FUNCTION: clone_or_update_repo
+# Clone or update the private provisioning repository
 #
 # Description:
-#   Clones REPO_URL (branch BRANCH) into DEFAULT_TARGET_DIR using shallow clone.
-#   Skips if directory already exists.
+#   If TARGET_DIR doesn't exist: clones REPO_URL (branch BRANCH) using shallow clone.
+#   If TARGET_DIR exists: updates to latest version from remote (git pull).
+#   Always ensures the repository is at the latest version before script execution.
 # ==============================================================================
-clone_private_repo() {
+clone_or_update_repo() {
   TARGET_DIR="$DEFAULT_TARGET_DIR"
+  PRIVATE_KEY_PATH="$(private_key_from_pub "$SSH_PUB_KEY_PATH")"
+
   if [ -d "$TARGET_DIR" ]; then
-    log INFO "Directory $TARGET_DIR already exists — reusing."
+    if [ "$DRY_RUN" -eq 1 ]; then
+      log DRY-RUN "Would update existing repository at $TARGET_DIR"
+      return 0
+    fi
+
+    log INFO "Repository $TARGET_DIR already exists — updating to latest version..."
+
+    # Change to repo directory and update
+    cd "$TARGET_DIR"
+
+    # Check if it's a valid git repository
+    if ! git rev-parse --git-dir >/dev/null 2>&1; then
+      log ERROR "Directory $TARGET_DIR exists but is not a git repository."
+      exit 1
+    fi
+
+    # Fetch and reset to latest remote version
+    GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+      git fetch origin "$BRANCH"
+
+    # Reset to remote branch (hard reset to ensure clean state)
+    git reset --hard "origin/$BRANCH"
+
+    log INFO "Repository updated to latest version."
     return 0
   fi
 
@@ -756,9 +782,6 @@ clone_private_repo() {
     log DRY-RUN "Would clone $REPO_URL (branch $BRANCH) into $TARGET_DIR"
     return 0
   fi
-
-  # Force SSH to use the bootstrapper identity explicitly
-  PRIVATE_KEY_PATH="$(private_key_from_pub "$SSH_PUB_KEY_PATH")"
 
   log INFO "Cloning $REPO_URL (branch $BRANCH) into $TARGET_DIR"
   GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
@@ -990,7 +1013,7 @@ main() {
   ensure_ssh_key
   show_public_key
   maybe_wait_for_confirmation "Once you added the key to GitHub, press ENTER to continue..."
-  clone_private_repo
+  clone_or_update_repo
   ensure_target_script_exists
 
   execute_target_script "$@"
