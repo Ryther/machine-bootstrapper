@@ -72,18 +72,43 @@ This project uses **Conventional Commits** with GitHub issue references. All com
 
 | Type | Description |
 |------|-------------|
-| `feat` | A new feature |
-| `fix` | A bug fix |
+| `feat` | A new feature (triggers MINOR version bump) |
+| `fix` | A bug fix (triggers PATCH version bump) |
 | `docs` | Documentation only changes |
 | `style` | Code style changes (formatting, missing semicolons, etc.) |
-| `refactor` | Code change that neither fixes a bug nor adds a feature |
-| `perf` | Performance improvements |
+| `refactor` | Code change that neither fixes a bug nor adds a feature (triggers PATCH) |
+| `perf` | Performance improvements (triggers PATCH) |
 | `test` | Adding or correcting tests |
 | `build` | Changes to build system or external dependencies |
-| `ci` | Changes to CI configuration files and scripts |
+| `cicd` | Changes to CI/CD configuration |
 | `chore` | Other changes that don't modify src or test files |
 | `devcontainer` | Changes to development container configuration |
 | `conf` | Configuration changes |
+
+### Breaking Changes
+
+To indicate a breaking change that triggers a **MAJOR** version bump:
+
+1. **Add `!` after type/scope:**
+   ```
+   feat(api)!: [gh-42] add authentication requirement
+   ```
+
+2. **Include `BREAKING CHANGE:` footer:**
+   ```
+   feat(api): [gh-42] add authentication requirement
+
+   BREAKING CHANGE: authentication is now required for this endpoint
+   ```
+
+3. **Combine both for clarity:**
+   ```
+   feat(api)!: [gh-42] add authentication requirement
+
+   This change requires all clients to provide authentication tokens.
+
+   BREAKING CHANGE: authentication is now required for this endpoint
+   ```
 
 ### Scope (Optional)
 
@@ -109,6 +134,14 @@ docs(readme): [gh-7] update installation instructions
 
 # Configuration
 conf(commitizen): [gh-23] add custom type definitions
+
+# Breaking change with !
+feat(api)!: [gh-42] add authentication requirement
+
+# Breaking change with footer
+feat(params)!: [gh-84] replace positional parameters with named flags
+
+BREAKING CHANGE: positional parameters replaced with --repo, --branch, --script flags
 ```
 
 ### Using Commitizen
@@ -124,11 +157,13 @@ git-cz commit
 ```
 
 Follow the prompts to:
-1. Select commit type
-2. Enter scope (optional)
+1. Select commit type (feat, fix, docs, etc.)
+2. Enter scope (optional, e.g., `bootstrap`, `api`)
 3. Enter GitHub issue number (e.g., `42` for `gh-42`)
-4. Write short description
-5. Add body/footer (optional)
+4. Write short description (lowercase, no period)
+5. Add body (optional, multiline context)
+6. Mark as breaking change? (y/N)
+7. Add footer (optional, breaking change details or issue references)
 
 ## Branch Naming Convention
 

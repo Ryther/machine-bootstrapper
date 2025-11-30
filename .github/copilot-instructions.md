@@ -61,12 +61,21 @@ This project uses **Conventional Commits** with GitHub issue references (enforce
 <type>(<scope>): [gh-<issue>] <description>
 ```
 
-**Allowed types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `devcontainer`, `conf`
+**Allowed types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `cicd`, `chore`, `devcontainer`, `conf`
+
+**Breaking Changes:** Add `!` after type/scope or include `BREAKING CHANGE:` footer to trigger MAJOR version bump.
 
 **Examples:**
 - `feat(bootstrap): [gh-1] add SSH key generation with QR code`
 - `fix(deps): [gh-15] resolve path handling for spaces`
 - `docs(readme): [gh-7] update installation instructions`
+- `feat(api)!: [gh-42] add new endpoint requiring authentication`
+- With breaking change footer:
+  ```
+  feat(api): [gh-42] add authentication requirement
+
+  BREAKING CHANGE: authentication is now required for this endpoint
+  ```
 
 Use **Python-based commitizen-tools** (`pip install commitizen`) for interactive commit creation:
 ```bash
@@ -100,8 +109,8 @@ alias shellcheck='docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:v0.11.0'
 
 ### GitHub Rulesets
 Repository uses GitHub Rulesets to enforce:
-1. **Commit message format** on `main` branch: `^(feat|fix|...)(\(.+\))?: \[gh-\d+\] .+$`
-2. **Branch naming convention** on feature branches: `^(feat|fix|...)/gh-\d+_.+$`
+1. **Commit message format** on `main` branch: `^(feat|fix|docs|style|refactor|perf|test|build|cicd|chore|devcontainer|conf)(\(.+\))?!?: \[gh-\d+\] .+$`
+2. **Branch naming convention** on feature branches: `^(feat|fix|docs|style|refactor|perf|test|build|cicd|chore|devcontainer|conf)/gh-\d+_.+$`
 3. **PR requirement**: Direct pushes to `main` are blocked; all changes must go through pull requests.
 4. **Status checks**: ShellCheck CI must pass before merging.
 
