@@ -1,3 +1,10 @@
+## v3.3.0 (2025-11-30)
+
+### Features
+
+- **bootstrap**: [gh-1] add --provisioning-tag
+- **bootstrap**: [gh-1] show runtime version
+
 ## v3.2.0 (2025-11-30)
 
 ### Features
