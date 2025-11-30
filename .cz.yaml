@@ -20,6 +20,7 @@ commitizen:
       ^fix: PATCH
       ^refactor: PATCH
       ^perf: PATCH
+      ^conf: PATCH
     message_template: "{{prefix}}{% if scope %}({{scope}}){% endif %}{% if is_breaking_change %}!{% endif %}: [gh-{{issue}}] {{subject}}{% if body %}\n\n{{body}}{% endif %}{% if is_breaking_change and footer %}\n\nBREAKING CHANGE: {{footer}}{% endif %}{% if not is_breaking_change and footer %}\n\n{{footer}}{% endif %}"
     example: "feat(api)!: [gh-42] add new endpoint requiring authentication\n\nBREAKING CHANGE: authentication is now required for this endpoint"
     schema: "<type>(<scope>)[!]: [gh-<issue>] <subject>\n<BLANK LINE>\n<body>\n<BLANK LINE>\n(BREAKING CHANGE: )<footer>"
