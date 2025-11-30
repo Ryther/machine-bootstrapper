@@ -48,7 +48,7 @@
 #
 # Author: Ryher<ryther-github.fencing812@passmail.net>
 # Repository: https://github.com/Ryther/machine-bootstrapper
-# Version: 3.0.0
+# Version: 3.1.0
 # License: See LICENSE file in repository
 # ==============================================================================
 

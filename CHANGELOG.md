@@ -1,3 +1,9 @@
+## v3.1.0 (2025-11-30)
+
+### Features
+
+- **bootstrap**: [gh-1] add automatic provisioning repository update on re-run
+
 ## v3.0.0 (2025-11-30)
 
 ### BREAKING CHANGE
