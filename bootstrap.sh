@@ -767,7 +767,7 @@ clone_or_update_repo() {
 
   # In dry-run mode, use a temporary directory
   if [ "$DRY_RUN" -eq 1 ]; then
-    TEMP_REPO_DIR="$(mktemp -d -t bootstrapper-XXXXXX)"
+    TEMP_REPO_DIR="$(mktemp -d --dry-run -t bootstrapper-XXXXXX)"
     TARGET_DIR="$TEMP_REPO_DIR"
     log INFO "Dry-run mode: using temporary directory $TARGET_DIR"
   else
