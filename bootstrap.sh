@@ -48,7 +48,7 @@
 #
 # Author: Ryher<ryther-github.fencing812@passmail.net>
 # Repository: https://github.com/Ryther/machine-bootstrapper
-# Version: 3.3.1
+# Version: 3.4.0
 # License: See LICENSE file in repository
 # ==============================================================================
 
@@ -104,7 +104,7 @@ PROVISIONING_TAG=""
 TEMP_REPO_DIR=""
 
 # Static script version (kept in sync with header above)
-VERSION="3.3.1"
+VERSION="3.4.0"
 
 # ==============================================================================
 # FUNCTION: usage

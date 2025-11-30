@@ -1,3 +1,9 @@
+## v3.4.0 (2025-11-30)
+
+### Features
+
+- **bootstrap**: [gh-1] use temp dir for dry-run clone
+
 ## v3.3.1 (2025-11-30)
 
 ### Bug Fixes
