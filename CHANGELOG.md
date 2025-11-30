@@ -1,3 +1,13 @@
+## v3.0.0 (2025-11-30)
+
+### BREAKING CHANGE
+
+- provisioning script no longer runs with sudo by default
+
+### Features
+
+- **bootstrap**: [gh-1] parametrize the sudo execution of the provisioning script and make it not default
+
 ## v2.0.1 (2025-11-29)
 
 ### Bug Fixes
