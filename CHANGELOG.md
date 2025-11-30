@@ -1,3 +1,9 @@
+## v3.3.1 (2025-11-30)
+
+### Bug Fixes
+
+- **bootstrap**: [gh-1] avoid dirname/basename in version parsing
+
 ## v3.3.0 (2025-11-30)
 
 ### Features

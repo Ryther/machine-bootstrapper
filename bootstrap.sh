@@ -48,7 +48,7 @@
 #
 # Author: Ryher<ryther-github.fencing812@passmail.net>
 # Repository: https://github.com/Ryther/machine-bootstrapper
-# Version: 3.3.0
+# Version: 3.3.1
 # License: See LICENSE file in repository
 # ==============================================================================
 
@@ -103,7 +103,7 @@ SUDO_SCRIPT=0
 PROVISIONING_TAG=""
 
 # Static script version (kept in sync with header above)
-VERSION="3.3.0"
+VERSION="3.3.1"
 
 # ==============================================================================
 # FUNCTION: usage
