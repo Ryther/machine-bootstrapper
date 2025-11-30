@@ -59,16 +59,9 @@ set -eu
 # Extract script version from header comment
 # ==============================================================================
 get_script_version() {
-  # Reads the first occurrence of '# Version: X.Y.Z' from this script file
-  SCRIPT_PATH_SELF="$0"
-  if [ "${SCRIPT_PATH_SELF#/}" != "$SCRIPT_PATH_SELF" ]; then
-    SRC="$SCRIPT_PATH_SELF"
-  else
-    # If invoked via relative path, resolve to absolute for grep
-    SRC="$(cd "$(dirname "$SCRIPT_PATH_SELF")" 2>/dev/null && pwd)/$(basename "$SCRIPT_PATH_SELF")"
-  fi
-  VER_LINE=$(grep -m1 "^# Version: " "$SRC" 2>/dev/null || true)
-  printf "%s" "${VER_LINE#'# Version: '}"
+  # When executed via sh -c with a remote script, $0 may not be the script path.
+  # Avoid dirname/basename and return a static VERSION variable.
+  printf "%s" "$VERSION"
 }
 
 # ==============================================================================
@@ -108,6 +101,9 @@ UNATTENDED=0
 SSH_KEY_PREEXISTING=0
 SUDO_SCRIPT=0
 PROVISIONING_TAG=""
+
+# Static script version (kept in sync with header above)
+VERSION="3.3.0"
 
 # ==============================================================================
 # FUNCTION: usage

@@ -3,6 +3,7 @@ commitizen:
   version_files:
     - README.md:badge/version-
     - "bootstrap.sh:# Version: "
+    - "bootstrap.sh:^VERSION="
   tag_format: v$version
   version_scheme: semver
   version_provider: scm
