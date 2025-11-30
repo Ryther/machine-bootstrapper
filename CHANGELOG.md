@@ -1,3 +1,9 @@
+## v3.2.0 (2025-11-30)
+
+### Features
+
+- **bootstrap**: [gh-1] propagate dry-run flag to provisioning script with interactive prompt
+
 ## v3.1.0 (2025-11-30)
 
 ### Features
