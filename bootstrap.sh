@@ -55,6 +55,23 @@
 set -eu
 
 # ==============================================================================
+# FUNCTION: get_script_version
+# Extract script version from header comment
+# ==============================================================================
+get_script_version() {
+  # Reads the first occurrence of '# Version: X.Y.Z' from this script file
+  SCRIPT_PATH_SELF="$0"
+  if [ "${SCRIPT_PATH_SELF#/}" != "$SCRIPT_PATH_SELF" ]; then
+    SRC="$SCRIPT_PATH_SELF"
+  else
+    # If invoked via relative path, resolve to absolute for grep
+    SRC="$(cd "$(dirname "$SCRIPT_PATH_SELF")" 2>/dev/null && pwd)/$(basename "$SCRIPT_PATH_SELF")"
+  fi
+  VER_LINE=$(grep -m1 "^# Version: " "$SRC" 2>/dev/null || true)
+  printf "%s" "${VER_LINE#'# Version: '}"
+}
+
+# ==============================================================================
 # FUNCTION: generate_bootstrapper_key_path
 # Generate a timestamped SSH key path for orphaned key scenarios
 #
@@ -767,7 +784,7 @@ clone_or_update_repo() {
       exit 1
     fi
 
-    # Fetch and reset to latest remote version
+    # Fetch latest
     GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
       git fetch origin "$BRANCH"
 
@@ -1048,6 +1065,8 @@ main() {
   configure_sudo
   ensure_dependencies
   ensure_ssh_key
+  # Show running version
+  log INFO "Bootstrapper version: $(get_script_version)"
   show_public_key
   maybe_wait_for_confirmation "Once you added the key to GitHub, press ENTER to continue..."
   clone_or_update_repo
