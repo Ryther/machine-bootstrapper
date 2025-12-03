@@ -1,3 +1,13 @@
+## v3.5.1 (2025-12-03)
+
+### Bug Fixes
+
+- **bootstrap**: [gh-1] test connection with system SSH keys not bootstrap key
+
+### Code Refactoring
+
+- **bootstrap**: [gh-1] extract argument parsing into separate function
+
 ## v3.5.0 (2025-12-03)
 
 ### Features
