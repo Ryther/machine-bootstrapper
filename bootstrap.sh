@@ -753,6 +753,45 @@ private_key_from_pub() {
 }
 
 # ==============================================================================
+# FUNCTION: test_github_connection
+# Test SSH connection to GitHub repository
+#
+# Description:
+#   Attempts to verify SSH connectivity to the target repository.
+#   Returns 0 if connection works, 1 otherwise.
+#   Uses existing SSH key if available, otherwise returns failure.
+#
+# Returns:
+#   0 - Connection successful
+#   1 - Connection failed or no key available
+# ==============================================================================
+test_github_connection() {
+  PRIVATE_KEY_PATH="$(private_key_from_pub "$SSH_PUB_KEY_PATH")"
+
+  # Check if key exists
+  if [ ! -f "$PRIVATE_KEY_PATH" ]; then
+    return 1
+  fi
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log DRY-RUN "Would test SSH connection to $REPO_URL"
+    return 1
+  fi
+
+  log INFO "Testing SSH connection to repository..."
+
+  # Test connection with git ls-remote (minimal operation)
+  if GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -o BatchMode=yes" \
+    git ls-remote "$REPO_URL" HEAD >/dev/null 2>&1; then
+    log INFO "SSH connection successful."
+    return 0
+  else
+    log WARN "SSH connection failed. Key may need to be added to GitHub."
+    return 1
+  fi
+}
+
+# ==============================================================================
 # FUNCTION: clone_or_update_repo
 # Clone or update the private provisioning repository
 #
@@ -1099,11 +1138,20 @@ main() {
   ensure_git_available
   configure_sudo
   ensure_dependencies
-  ensure_ssh_key
+
   # Show running version
   log INFO "Bootstrapper version: $(get_script_version)"
-  show_public_key
-  maybe_wait_for_confirmation "Once you added the key to GitHub, press ENTER to continue..."
+
+  # Test connection first - only generate key if needed
+  if ! test_github_connection; then
+    log INFO "Generating SSH key for repository access..."
+    ensure_ssh_key
+    show_public_key
+    maybe_wait_for_confirmation "Once you added the key to GitHub, press ENTER to continue..."
+  else
+    log INFO "Using existing SSH key for repository access."
+  fi
+
   clone_or_update_repo
   ensure_target_script_exists
 
