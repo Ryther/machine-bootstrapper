@@ -994,23 +994,19 @@ execute_target_script() {
 }
 
 # ==============================================================================
-# FUNCTION: main
-# Main entry point - parse arguments and orchestrate bootstrap process
+# FUNCTION: parse_arguments
+# Parse command-line arguments and validate required parameters
 #
 # Arguments:
 #   $@ - Command-line arguments
 #
 # Description:
-#   1. Parse command-line flags and arguments
-#   2. Validate git availability
-#   3. Configure sudo
-#   4. Ensure dependencies (ssh-keygen, qrencode)
-#   5. Generate/validate SSH keypair
-#   6. Display public key and wait for GitHub registration
-#   7. Clone private provisioning repository
-#   8. Execute target provisioning script with forwarded arguments
+#   Parses all command-line flags and positional arguments.
+#   Sets global variables (REPO_URL, BRANCH, SCRIPT_PATH, etc.).
+#   Validates required parameters and enables verbose mode if requested.
+#   Returns script arguments (after --) via global state.
 # ==============================================================================
-main() {
+parse_arguments() {
   REPO_URL=""
   BRANCH="$DEFAULT_BRANCH"
   SCRIPT_PATH="$DEFAULT_SCRIPT_PATH"
@@ -1134,6 +1130,27 @@ main() {
   if [ "$VERBOSE" -eq 1 ]; then
     set -x
   fi
+}
+
+# ==============================================================================
+# FUNCTION: main
+# Main entry point - orchestrate bootstrap process
+#
+# Arguments:
+#   $@ - Command-line arguments
+#
+# Description:
+#   1. Parse command-line flags and arguments
+#   2. Validate git availability and configure sudo
+#   3. Ensure dependencies (ssh-keygen, qrencode)
+#   4. Test GitHub connection (if key exists)
+#   5. Generate SSH key only if connection test fails
+#   6. Display public key and wait for GitHub registration (if new key)
+#   7. Clone/update private provisioning repository
+#   8. Execute target provisioning script with forwarded arguments
+# ==============================================================================
+main() {
+  parse_arguments "$@"
 
   ensure_git_available
   configure_sudo
