@@ -1,3 +1,10 @@
+## v3.5.3 (2025-12-03)
+
+### Bug Fixes
+
+- **clone**: [gh-1] verify origin URL before updating existing repository
+- **bootstrap**: [gh-1] export GIT_SSH_COMMAND for consistent SSH config
+
 ## v3.5.2 (2025-12-03)
 
 ### Bug Fixes
