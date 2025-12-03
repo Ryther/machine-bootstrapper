@@ -107,6 +107,9 @@ BOOTSTRAP_KEY_USED=0
 # Static script version (kept in sync with header above)
 VERSION="3.5.2"
 
+# Arguments to pass to provisioning script (after -- separator)
+SCRIPT_ARGS=""
+
 # ==============================================================================
 # FUNCTION: usage
 # Display help message and exit
@@ -801,10 +804,10 @@ clone_or_update_repo() {
   # Setup SSH command based on whether we need bootstrap key
   if [ "$BOOTSTRAP_KEY_USED" -eq 1 ]; then
     PRIVATE_KEY_PATH="$(private_key_from_pub "$SSH_PUB_KEY_PATH")"
-    export GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+    SSH_CMD="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
   else
     # Use system SSH keys (default configuration)
-    export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
+    SSH_CMD="ssh -o StrictHostKeyChecking=accept-new"
   fi
 
   # In dry-run mode, use a temporary directory
@@ -830,32 +833,44 @@ clone_or_update_repo() {
       exit 1
     fi
 
-    # Fetch latest and tags (GIT_SSH_COMMAND already exported)
-    git fetch --tags origin "$BRANCH"
-
-    if [ -n "$PROVISIONING_TAG" ]; then
-      # Checkout specific tag (detached HEAD)
-      git checkout -f "$PROVISIONING_TAG"
+    # Verify origin URL matches expected repository
+    CURRENT_URL="$(git remote get-url origin 2>/dev/null || true)"
+    if [ "$CURRENT_URL" != "$REPO_URL" ]; then
+      log WARN "Origin URL changed: $CURRENT_URL → $REPO_URL"
+      log INFO "Removing old repository and re-cloning..."
+      cd ..
+      rm -rf "$TARGET_DIR"
+      # Fall through to clone section below
     else
-      # Reset to remote branch (hard reset to ensure clean state)
-      git reset --hard "origin/$BRANCH"
-    fi
+      # Fetch latest and tags
+      GIT_SSH_COMMAND="$SSH_CMD" \
+        git fetch --tags origin "$BRANCH"
 
-    log INFO "Repository updated to latest version."
-    return 0
+      if [ -n "$PROVISIONING_TAG" ]; then
+        # Checkout specific tag (detached HEAD)
+        git checkout -f "$PROVISIONING_TAG"
+      else
+        # Reset to remote branch (hard reset to ensure clean state)
+        git reset --hard "origin/$BRANCH"
+      fi
+
+      log INFO "Repository updated to latest version."
+      return 0
+    fi
   fi
 
   # Clone repository (works for both normal and dry-run mode)
-  # GIT_SSH_COMMAND already exported at function start
   if [ -n "$PROVISIONING_TAG" ]; then
     log INFO "Cloning $REPO_URL (tag $PROVISIONING_TAG) into $TARGET_DIR"
-    git clone --depth 1 "$REPO_URL" "$TARGET_DIR"
+    GIT_SSH_COMMAND="$SSH_CMD" \
+      git clone --depth 1 "$REPO_URL" "$TARGET_DIR"
     cd "$TARGET_DIR"
-    git fetch --tags
+    GIT_SSH_COMMAND="$SSH_CMD" git fetch --tags
     git checkout -f "$PROVISIONING_TAG"
   else
     log INFO "Cloning $REPO_URL (branch $BRANCH) into $TARGET_DIR"
-    git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$TARGET_DIR"
+    GIT_SSH_COMMAND="$SSH_CMD" \
+      git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$TARGET_DIR"
   fi
 }
 
@@ -906,7 +921,7 @@ ensure_target_script_exists() {
 # Execute the provisioning script from the private repository
 #
 # Arguments:
-#   $@ - Arguments to forward to the provisioning script
+#   $@ - Arguments to forward to the provisioning script (from SCRIPT_ARGS global)
 #
 # Description:
 #   Resolves script path to absolute, changes to target directory, then executes.
@@ -915,6 +930,7 @@ ensure_target_script_exists() {
 #   (auto-accepts in unattended mode).
 #   Uses temporary directory if set (dry-run mode).
 #   Attempts to execute script directly if executable, otherwise uses sh.
+#   Only receives provisioning script arguments (after -- separator), not bootstrapper flags.
 # ==============================================================================
 execute_target_script() {
   # Use temp directory if set (dry-run mode), otherwise use default
@@ -1103,6 +1119,8 @@ parse_arguments() {
         ;;
       --)
         shift
+        # Store remaining arguments as script arguments
+        SCRIPT_ARGS="$*"
         break
         ;;
       --*)
@@ -1175,7 +1193,9 @@ main() {
   clone_or_update_repo
   ensure_target_script_exists
 
-  execute_target_script "$@"
+  # shellcheck disable=SC2086
+  # Word splitting is intentional here to pass multiple script arguments
+  execute_target_script $SCRIPT_ARGS
 
   # Cleanup temporary directory if used
   if [ -n "$TEMP_REPO_DIR" ] && [ -d "$TEMP_REPO_DIR" ]; then
