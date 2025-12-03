@@ -801,10 +801,10 @@ clone_or_update_repo() {
   # Setup SSH command based on whether we need bootstrap key
   if [ "$BOOTSTRAP_KEY_USED" -eq 1 ]; then
     PRIVATE_KEY_PATH="$(private_key_from_pub "$SSH_PUB_KEY_PATH")"
-    SSH_CMD="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+    export GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
   else
     # Use system SSH keys (default configuration)
-    SSH_CMD="ssh -o StrictHostKeyChecking=accept-new"
+    export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
   fi
 
   # In dry-run mode, use a temporary directory
@@ -830,9 +830,8 @@ clone_or_update_repo() {
       exit 1
     fi
 
-    # Fetch latest and tags
-    GIT_SSH_COMMAND="$SSH_CMD" \
-      git fetch --tags origin "$BRANCH"
+    # Fetch latest and tags (GIT_SSH_COMMAND already exported)
+    git fetch --tags origin "$BRANCH"
 
     if [ -n "$PROVISIONING_TAG" ]; then
       # Checkout specific tag (detached HEAD)
@@ -847,17 +846,16 @@ clone_or_update_repo() {
   fi
 
   # Clone repository (works for both normal and dry-run mode)
+  # GIT_SSH_COMMAND already exported at function start
   if [ -n "$PROVISIONING_TAG" ]; then
     log INFO "Cloning $REPO_URL (tag $PROVISIONING_TAG) into $TARGET_DIR"
-    GIT_SSH_COMMAND="$SSH_CMD" \
-      git clone --depth 1 "$REPO_URL" "$TARGET_DIR"
+    git clone --depth 1 "$REPO_URL" "$TARGET_DIR"
     cd "$TARGET_DIR"
-    GIT_SSH_COMMAND="$SSH_CMD" git fetch --tags
+    git fetch --tags
     git checkout -f "$PROVISIONING_TAG"
   else
     log INFO "Cloning $REPO_URL (branch $BRANCH) into $TARGET_DIR"
-    GIT_SSH_COMMAND="$SSH_CMD" \
-      git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$TARGET_DIR"
+    git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$TARGET_DIR"
   fi
 }
 
