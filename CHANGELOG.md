@@ -1,3 +1,9 @@
+## v3.5.0 (2025-12-03)
+
+### Features
+
+- **bootstrap**: [gh-1] test GitHub connection before generating SSH key
+
 ## v3.4.1 (2025-11-30)
 
 ### Bug Fixes
