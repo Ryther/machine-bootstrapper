@@ -102,6 +102,7 @@ SSH_KEY_PREEXISTING=0
 SUDO_SCRIPT=0
 PROVISIONING_TAG=""
 TEMP_REPO_DIR=""
+BOOTSTRAP_KEY_USED=0
 
 # Static script version (kept in sync with header above)
 VERSION="3.5.1"
@@ -797,7 +798,14 @@ test_github_connection() {
 #   Always ensures the repository is at the latest version before script execution.
 # ==============================================================================
 clone_or_update_repo() {
-  PRIVATE_KEY_PATH="$(private_key_from_pub "$SSH_PUB_KEY_PATH")"
+  # Setup SSH command based on whether we need bootstrap key
+  if [ "$BOOTSTRAP_KEY_USED" -eq 1 ]; then
+    PRIVATE_KEY_PATH="$(private_key_from_pub "$SSH_PUB_KEY_PATH")"
+    SSH_CMD="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+  else
+    # Use system SSH keys (default configuration)
+    SSH_CMD="ssh -o StrictHostKeyChecking=accept-new"
+  fi
 
   # In dry-run mode, use a temporary directory
   if [ "$DRY_RUN" -eq 1 ]; then
@@ -823,7 +831,7 @@ clone_or_update_repo() {
     fi
 
     # Fetch latest and tags
-    GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+    GIT_SSH_COMMAND="$SSH_CMD" \
       git fetch --tags origin "$BRANCH"
 
     if [ -n "$PROVISIONING_TAG" ]; then
@@ -841,14 +849,14 @@ clone_or_update_repo() {
   # Clone repository (works for both normal and dry-run mode)
   if [ -n "$PROVISIONING_TAG" ]; then
     log INFO "Cloning $REPO_URL (tag $PROVISIONING_TAG) into $TARGET_DIR"
-    GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+    GIT_SSH_COMMAND="$SSH_CMD" \
       git clone --depth 1 "$REPO_URL" "$TARGET_DIR"
     cd "$TARGET_DIR"
-    git fetch --tags
+    GIT_SSH_COMMAND="$SSH_CMD" git fetch --tags
     git checkout -f "$PROVISIONING_TAG"
   else
     log INFO "Cloning $REPO_URL (branch $BRANCH) into $TARGET_DIR"
-    GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+    GIT_SSH_COMMAND="$SSH_CMD" \
       git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$TARGET_DIR"
   fi
 }
@@ -1160,8 +1168,10 @@ main() {
     ensure_ssh_key
     show_public_key
     maybe_wait_for_confirmation "Once you added the key to GitHub, press ENTER to continue..."
+    BOOTSTRAP_KEY_USED=1
   else
     log INFO "Using existing SSH key for repository access."
+    BOOTSTRAP_KEY_USED=0
   fi
 
   clone_or_update_repo
