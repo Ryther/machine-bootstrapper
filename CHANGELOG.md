@@ -1,3 +1,9 @@
+## v3.5.2 (2025-12-03)
+
+### Bug Fixes
+
+- **bootstrap**: [gh-1] use system SSH keys for clone when bootstrap key not needed
+
 ## v3.5.1 (2025-12-03)
 
 ### Bug Fixes

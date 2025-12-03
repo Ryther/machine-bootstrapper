@@ -48,7 +48,7 @@
 #
 # Author: Ryher<ryther-github.fencing812@passmail.net>
 # Repository: https://github.com/Ryther/machine-bootstrapper
-# Version: 3.5.1
+# Version: 3.5.2
 # License: See LICENSE file in repository
 # ==============================================================================
 
@@ -105,7 +105,7 @@ TEMP_REPO_DIR=""
 BOOTSTRAP_KEY_USED=0
 
 # Static script version (kept in sync with header above)
-VERSION="3.5.1"
+VERSION="3.5.2"
 
 # ==============================================================================
 # FUNCTION: usage
