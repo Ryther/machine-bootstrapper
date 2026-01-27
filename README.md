@@ -43,7 +43,7 @@ When dependencies are missing the script asks whether it may install them. Answe
 ## 🎯 Usage
 
 ```bash
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/Ryther/machine-boostrapper/main/bootstrap.sh)" \
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/Ryther/machine-bootstrapper/refs/heads/main/bootstrap.sh)" \
   -- [OPTIONS] --repo <git@github.com:<your-user>/setup-private.git> [-- script-args...]
 ```
 
